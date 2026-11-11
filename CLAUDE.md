@@ -21,10 +21,12 @@
 
 ## 저장소
 
-- github.com/hiyunsang/Orbit — **비공개**(2026-11-11 만듦). 기능 단위로 커밋하고 `git push origin main`. 메시지는 한국어로 무엇을 왜.
+- github.com/hiyunsang/Orbit — 2026-11-11 비공개로 만들었고, 같은 날 사용자가 *"공개해도 돼"* 라고 했다(공개 전환은 깃허브 설정에서 사용자가 — Claude 의 전환 시도는 자동 권한 검사에서 막혔다). 기능 단위로 커밋하고 `git push origin main`. 메시지는 한국어로 무엇을 왜.
+- **라이선스 파일을 붙이지 않는다.** 사용자는 Orbit·Athenaeum 을 나중에 앱으로 팔 계획이다(2026-11-11). 라이선스가 없으면 모든 권리가 저작자에게 있어, 공개 저장소여도 남이 가져다 쓰거나 팔 수 없다. MIT 같은 오픈소스 라이선스는 먼저 묻는다.
+- 새로 들이는 글꼴·자료·코드는 상업적으로 써도 되는 것만(글꼴 Pretendard·Geist 는 SIL OFL — 앱에 넣어 팔아도 되고, 사용권 파일을 곁에 둔다).
 - 올리지 않는 것은 `.gitignore`: `data\`(기록 DB·서랍·다른 기기 설정·로그·학사일정) · `notes\` · 사용자별 `rules/names/notices.json` · `static\_bak\` · `*.bak` · `*.lnk`. 커밋 전에 `git status` 로 확인.
 - 줄바꿈은 `.gitattributes` 로 LF 고정(bat·vbs 만 CRLF).
-- 공개로 바꾸려면 먼저 거를 것: DESIGN §16(장학 수혜 상황) · HANDOFF(이 PC 사정·작업 기록) · 테일넷 주소(`share_tailnet.py` · HANDOFF).
+- 공개되면 그대로 보이는 것(사용자가 알고 허락함): DESIGN §16(장학 수혜 상황) · HANDOFF(이 PC 사정·작업 기록) · 테일넷 주소(`share_tailnet.py` · HANDOFF). 그 밖의 개인 정보는 새로 적지 않는다.
 
 ## 테스트·배포
 
