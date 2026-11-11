@@ -2510,6 +2510,13 @@ def main(argv=None):
     t = threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.5},
                          name="http", daemon=True)
     t.start()
+    # §46 작업 표시줄 이름표: 브라우저 --app 창(Orbit, data\taskbar_apps.json 의 다른 앱)에 앱 자신의 ID·다시 실행 명령·아이콘
+    if CFG.get("taskbar_identity", True):
+        try:
+            import taskbar_id
+            taskbar_id.start(common.data_dir(CFG))
+        except Exception as e:
+            log.warning("작업 표시줄 이름표를 켜지 못함(무시): %s", e)
     log.info("서버 시작 http://%s:%d  db=%s  engine=%s", host, port,
              common.db_path(CFG), "OK" if engine is not None else ("없음 (%s)" % ENGINE_ERROR))
     try:

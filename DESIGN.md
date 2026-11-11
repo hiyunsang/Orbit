@@ -1491,3 +1491,18 @@ Anki 가 스스로 안 하니 호라리움이 눌러 준다. 단, **애드온이
 - 판 번호 `?v=orbit3`(§44 규칙).
 - 남는 것: PC 앱 창(크롬 `--app`)의 제목 줄이 어두우면(페이지의 theme-color) 검은 마크가 거기서는 흐리게 보인다. 작업 표시줄이 더 자주 보이므로 검정을 골랐다. 윈도우를 어두운 테마로 바꾸면 `PC_INK` 를 `ICON_INK`(흰색)로 바꿔 다시 만들고 판 번호를 올린다.
 - 검증: `test_static_layout.py::test_pc_icon_one_color_design_45`, `logo/orbit-preview.png`(밝은 줄·어두운 줄), 바로가기 셋의 아이콘 경로.
+
+## 46. 작업 표시줄 이름표 (2026-11-11) — taskbar_id.py, server.py, launch.pyw, data\taskbar_apps.json
+
+사용자 *"아테네움도 그렇고 오빗도 그렇고, 작업 표시줄에 고정하면 아이콘이 바뀜"*.
+- 원인(실측): 두 앱은 PC 에서 브라우저의 `--app` 창이다. 창이 작업 표시줄에 알리는 것은 브라우저가 단 ID 뿐이었다 — Orbit `Chrome.127.0.0.1_/.browserprole.Default`(크롬), Athenaeum `MSEdge.localhost_/`(엣지). 다시 실행 명령·이름·아이콘은 비어 있었다. 그래서 창을 고정하면 윈도우가 브라우저 실행 파일로 고정하고 아이콘도 브라우저 것이 된다.
+- 고침: 그런 창에 앱 자신의 **AppUserModelID** 와 **다시 실행 명령·이름·아이콘**(`PKEY_AppUserModel_ID` · `RelaunchCommand` · `RelaunchDisplayNameResource` · `RelaunchIconResource`)을 붙인다(`taskbar_id.py`). 다른 프로세스의 창에도 `SHGetPropertyStoreForWindow` 로 붙일 수 있다. 크롬도 자기 창에 같은 방법을 쓴다.
+  | 앱 | ID | 제목 | 다시 실행 | 아이콘 |
+  |---|---|---|---|---|
+  | Orbit(코드에 있음) | `MAENG.Orbit` | `Orbit · 출근기록$` | `pythonw launch.pyw`(서버도 띄운다) | `logo\orbit-mono.ico`(§45) |
+  | Athenaeum(`data\taskbar_apps.json` — 이 PC 사정이라 git 밖) | `MAENG.Athenaeum` | `Athenaeum$` | `Athenaeum_실행.bat` | `paper-search\logo\athenaeum.ico` |
+- 고르는 법(`match`, 순수 함수): 실행 파일이 chrome/msedge **이고** 지금 ID 가 그 브라우저의 `--app` ID(`Chrome.<host>_…`·`MSEdge.<host>_…`) 또는 이미 붙인 ID **이고** 제목이 앱의 정규식에 맞을 때만. 보통 크롬 창(ID `Chrome`)의 탭, 같은 localhost 를 쓰는 다른 앱 창(Janua 등)은 건드리지 않는다.
+- 언제: **서버의 데몬 스레드가 2초마다**(`taskbar_id.start`, config `taskbar_identity` 로 끌 수 있다; `taskbar_apps.json` 은 바뀌면 다시 읽음) + **`launch.pyw` 가 창을 연 직후 최대 10초** 0.25초 간격. 값이 이미 같으면 건드리지 않는다.
+- 바로가기에도 같은 ID 를 단다(`python taskbar_id.py --shortcut MAENG.Orbit <lnk>…`) — 시작 메뉴·바탕화면 바로가기와 창이 한 단추로 묶이고, 시작 메뉴에서 '작업 표시줄에 고정' 해도 같은 것이 된다.
+- 이미 브라우저 아이콘으로 고정해 둔 것은 풀고 다시 고정해야 한다(그 고정은 브라우저 실행 파일을 가리킨다).
+- 검증: `tests/test_taskbar.py`(고르는 법·불러오기·차례·연결). 실측: 서버 재시작 뒤 떠 있는 두 앱 창의 속성을 다시 읽어 값이 붙었는지, 바로가기 ID 를 실제 셸에서(explorer 로 띄운 확인 스크립트) 읽기.

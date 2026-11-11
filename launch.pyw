@@ -25,6 +25,22 @@ EDGE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 DETACHED = 0x00000008 | 0x00000200 | 0x08000000  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
 
 
+def _stamp_soon(ddir):
+    """§46 창이 뜨자마자 작업 표시줄 이름표를 붙인다 — 서버도 2초마다 붙이지만, 고정한 단추로 곧장 묶이게. 최대 10초."""
+    try:
+        import pythoncom
+        import taskbar_id
+        pythoncom.CoInitialize()
+        apps = taskbar_id.load_apps(ddir)
+        end = time.time() + 10
+        while time.time() < end:
+            if taskbar_id.stamp_once(apps):
+                return
+            time.sleep(0.25)
+    except Exception as e:
+        log("작업 표시줄 이름표 실패: %s" % e)
+
+
 def msgbox(text, title="Orbit", icon=0x10):
     try:
         ctypes.windll.user32.MessageBoxW(0, text, title, icon)
@@ -115,6 +131,7 @@ def main():
                               "--no-default-browser-check", "--app=" + url],
                              creationflags=0x00000008 | 0x00000200, close_fds=True,
                              stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            _stamp_soon(ddir)
         else:
             os.startfile(url)
     except Exception as e:

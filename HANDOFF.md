@@ -186,6 +186,8 @@
 
 **같은 날 §45 — PC 아이콘은 바탕 없이 검은 마크 하나** — 사용자 *"깜-하-깜-하라서 번잡해 보여 … 배경색 없이 까만색으로만 하거나 하얗게만"*. 윈도우가 밝은 테마라 검정. .ico 셋(static/horarium.ico · app_icon.ico · 새 logo/orbit-mono.ico)은 투명 바탕 + 검은 마크, favicon.svg 는 화면 밝기를 따라 검정/흰색, 폰 아이콘은 검은 바탕 그대로. 바로가기 셋(바탕화면 · 시작 메뉴 · 이 폴더 Orbit.lnk)은 logo\orbit-mono.ico 를 가리킨다. `?v=orbit3`.
 
+**같은 날 §46 — 작업 표시줄에 고정하면 아이콘이 브라우저 것으로 바뀌던 것** — 두 앱 창이 브라우저가 단 ID 만 알리고 다시 실행 명령·아이콘이 비어 있었다. `taskbar_id.py` 가 창에 `MAENG.Orbit`·`MAENG.Athenaeum` ID 와 실행기·아이콘을 붙인다(서버 2초마다 + launch.pyw 창 연 직후). Athenaeum 항목은 `data\taskbar_apps.json`(git 밖). 바로가기(시작 메뉴·바탕화면 00_앱·이 폴더의 Orbit.lnk, 00_앱\Athenaeum.lnk)에도 같은 ID. **AppData 아래(시작 메뉴 포함) 결과는 앱 안에서 읽으면 가상화된 사본이 섞여 보일 수 있다** — `Documents\.desktop-tools\taskbar_check.vbs` 를 explorer.exe 로 띄우면 실제 셸에서 읽어 `logs\taskbar_check.txt` 에 적는다(이번엔 시작 메뉴 바꿈이 실제로 반영돼 있었다).
+
 ### 2.7 남은 일 (사용자가 아직 요청하지 않은 것 — 먼저 제안하지 말고 물어볼 때만)
 
 - **§18.7 풀창 블록 폭 상한.** 1280px 창에서 블록 폭이 916px 라 짧은 라벨 하나에 가로를 다 쓴다. 상한 240px 가 28일 실데이터 기준 라벨 무잘림 100% 지점. 구현은 2줄이지만 **남는 1000px 넘는 흰 영역을 무엇으로 채울지 먼저 정해야 한다.**
