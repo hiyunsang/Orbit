@@ -1,0 +1,26 @@
+{
+  "poll_sec": 2,
+  "heartbeat_sec": 30,
+  "idle_sec": 600,
+  "idle_grace_sec": {
+    "focus": 900,
+    "experiment": 86400,
+    "meeting": 0,
+    "break": 0,
+    "distraction": 1800,
+    "neutral": 0,
+    "unknown": 0
+  },
+  "day_start_hour": 4,
+  "display_start_hour": 6,
+  "display_end_hour": 24,
+  "absorb_sec": 10,
+  "dead_after_sec": 120,
+  "host": "127.0.0.1",
+  "port": 8771,
+  "data_dir": "data",
+  "backup_keep_days": 14,
+  "mask_titles": {
+    "KakaoTalk.exe": "[카카오톡]"
+  }
+}

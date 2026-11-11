@@ -1,0 +1,7 @@
+# 줄바꿈은 LF 로 고정 — 윈도우 git 의 autocrlf 가 작업 파일을 CRLF 로 바꾸지 않게. bat/vbs 만 CRLF
+* text=auto eol=lf
+*.bat text eol=crlf
+*.vbs text eol=crlf
+*.woff2 binary
+*.png binary
+*.ico binary

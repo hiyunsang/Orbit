@@ -1,0 +1,336 @@
+{
+  "_설명": "분류 규칙. priority 높은 것부터 검사해 첫 매치 채택. target=exe 는 실행파일 이름(chrome.exe), target=title 은 창 제목 포함 여부. is_regex=true 면 정규식. idle_limit_sec 는 무입력이어도 이 초 동안은 해당 카테고리 유지(null 이면 config.idle_grace_sec 의 카테고리 기본값). category: focus 집중 / experiment 실험 / meeting 회의 / break 휴식 / distraction 딴짓 / neutral 중립 / unknown 미분류",
+  "rules": [
+    {
+      "target": "title",
+      "pattern": "강의|lecture|tutorial|CNC|MATLAB|ANSYS|Abaqus|절삭|가공|밀링|선반|공구|마모|machining|milling|turning|tool wear|lathe|FEM|simulation|시뮬레이션|LabVIEW|파이썬|python",
+      "is_regex": true,
+      "category": "focus",
+      "priority": 300,
+      "idle_limit_sec": null,
+      "note": "유튜브라도 강의/전공 영상이면 집중"
+    },
+    {
+      "target": "title",
+      "pattern": "YouTube",
+      "is_regex": false,
+      "category": "distraction",
+      "priority": 200,
+      "idle_limit_sec": null
+    },
+    {
+      "target": "title",
+      "pattern": "Netflix|Disney\\+|TVING|티빙|Wavve|웨이브|쿠팡플레이|Coupang Play|왓챠|Watcha",
+      "is_regex": true,
+      "category": "distraction",
+      "priority": 200,
+      "idle_limit_sec": null
+    },
+    {
+      "target": "title",
+      "pattern": "치지직|CHZZK|SOOP|아프리카TV|Twitch|네이버 TV|TikTok|틱톡",
+      "is_regex": true,
+      "category": "distraction",
+      "priority": 200,
+      "idle_limit_sec": null
+    },
+    {
+      "target": "title",
+      "pattern": "Instagram|인스타그램|Facebook|페이스북|Reddit|Threads",
+      "is_regex": true,
+      "category": "distraction",
+      "priority": 200,
+      "idle_limit_sec": null
+    },
+    {
+      "target": "title",
+      "pattern": "\\s/\\sX\\b",
+      "is_regex": true,
+      "category": "distraction",
+      "priority": 200,
+      "idle_limit_sec": null,
+      "note": "트위터(X) 탭 제목 형식"
+    },
+    {
+      "target": "title",
+      "pattern": "디시인사이드|dcinside|에펨코리아|fmkorea|루리웹|ruliweb|인벤|inven|클리앙|clien|더쿠|theqoo|뽐뿌|ppomppu",
+      "is_regex": true,
+      "category": "distraction",
+      "priority": 200,
+      "idle_limit_sec": null
+    },
+    {
+      "target": "title",
+      "pattern": "네이버 웹툰|WEBTOON|카카오웹툰|카카오페이지|네이버 시리즈",
+      "is_regex": true,
+      "category": "distraction",
+      "priority": 200,
+      "idle_limit_sec": null
+    },
+    {
+      "target": "title",
+      "pattern": "쿠팡|Coupang|무신사|MUSINSA|지마켓|11번가|알리익스프레스|AliExpress|당근",
+      "is_regex": true,
+      "category": "distraction",
+      "priority": 200,
+      "idle_limit_sec": null
+    },
+    {
+      "target": "title",
+      "pattern": "네이버 스포츠|네이버 연예|NAVER 뉴스|네이버 뉴스",
+      "is_regex": true,
+      "category": "distraction",
+      "priority": 200,
+      "idle_limit_sec": null
+    },
+    {
+      "target": "title",
+      "pattern": "ChatGPT",
+      "is_regex": false,
+      "category": "focus",
+      "priority": 200,
+      "idle_limit_sec": null
+    },
+    {
+      "target": "title",
+      "pattern": "Claude",
+      "is_regex": false,
+      "category": "focus",
+      "priority": 200,
+      "idle_limit_sec": null
+    },
+    {
+      "target": "title",
+      "pattern": "Gemini|Perplexity|Copilot",
+      "is_regex": true,
+      "category": "focus",
+      "priority": 200,
+      "idle_limit_sec": null
+    },
+    {
+      "target": "title",
+      "pattern": "Paperdesk|Athenaeum",
+      "is_regex": true,
+      "category": "focus",
+      "priority": 200,
+      "idle_limit_sec": 1200,
+      "note": "본인 논문 앱 (Paperdesk → Athenaeum 로 이름 바뀜)"
+    },
+    {
+      "target": "title",
+      "pattern": "(19|20)[0-9]{2} 읽기",
+      "is_regex": true,
+      "category": "focus",
+      "priority": 200,
+      "idle_limit_sec": 1200,
+      "note": "Paperdesk 리더 탭 제목(저자 연도 읽기)"
+    },
+    {
+      "target": "title",
+      "pattern": "MAENG 논문 검색",
+      "is_regex": false,
+      "category": "focus",
+      "priority": 200,
+      "idle_limit_sec": null,
+      "note": "본인 논문 검색 프로그램"
+    },
+    {
+      "target": "title",
+      "pattern": "관련 논문 맵",
+      "is_regex": false,
+      "category": "focus",
+      "priority": 200,
+      "idle_limit_sec": null
+    },
+    {
+      "target": "title",
+      "pattern": "Google Scholar|ScienceDirect|Scopus|Web of Science|SpringerLink|Springer|Wiley|IEEE Xplore|Taylor & Francis|Elsevier|MDPI|Sage Journals|ResearchGate|arXiv|Semantic Scholar|DBpia|RISS|KCI|ScienceON|KISS|학술",
+      "is_regex": true,
+      "category": "focus",
+      "priority": 200,
+      "idle_limit_sec": 1200,
+      "note": "논문 검색·열람"
+    },
+    {
+      "target": "title",
+      "pattern": "\\.pdf",
+      "is_regex": true,
+      "category": "focus",
+      "priority": 190,
+      "idle_limit_sec": 1200,
+      "note": "브라우저에서 PDF 읽기 — 무입력 20분까지 집중 유지"
+    },
+    {
+      "target": "title",
+      "pattern": "Overleaf|Google Docs|Google Sheets|Google Slides|Notion|Obsidian",
+      "is_regex": true,
+      "category": "focus",
+      "priority": 200,
+      "idle_limit_sec": null
+    },
+    {
+      "target": "title",
+      "pattern": "GitHub|Stack Overflow|MathWorks|PyPI|Read the Docs|Jupyter",
+      "is_regex": true,
+      "category": "focus",
+      "priority": 200,
+      "idle_limit_sec": null
+    },
+    {
+      "target": "title",
+      "pattern": "MAENG 출근기록|Horarium|Orbit · 출근기록",
+      "is_regex": true,
+      "category": "neutral",
+      "priority": 200,
+      "idle_limit_sec": null,
+      "note": "이 앱 자신 (Orbit, 옛 Horarium)"
+    },
+    {
+      "target": "title",
+      "pattern": "Gmail|네이버 메일|Naver Mail|Outlook|Google 캘린더|Google Calendar|카카오톡|KakaoTalk|Discord|Slack",
+      "is_regex": true,
+      "category": "neutral",
+      "priority": 200,
+      "idle_limit_sec": null
+    },
+    {
+      "target": "exe",
+      "pattern": "MAENG_Sync.exe",
+      "is_regex": false,
+      "category": "experiment",
+      "priority": 100,
+      "idle_limit_sec": 86400,
+      "note": "절삭력 DAQ 측정 프로그램 — 측정 중 무입력이어도 실험"
+    },
+    {
+      "target": "exe",
+      "pattern": "MAENGLAB_ForceDAQ.exe",
+      "is_regex": false,
+      "category": "experiment",
+      "priority": 100,
+      "idle_limit_sec": 86400
+    },
+    {
+      "target": "exe",
+      "pattern": "^LabVIEW.*\\.exe$|^NIMAX\\.exe$|^MAX\\.exe$",
+      "is_regex": true,
+      "category": "experiment",
+      "priority": 100,
+      "idle_limit_sec": 86400
+    },
+    {
+      "target": "exe",
+      "pattern": "Acrobat.exe|AcroRd32.exe|SumatraPDF.exe|FoxitReader.exe|FoxitPDFReader.exe|PDFXEdit.exe|ezPDFEditor.exe",
+      "is_regex": true,
+      "category": "focus",
+      "priority": 100,
+      "idle_limit_sec": 1200,
+      "note": "PDF 뷰어 — 논문 읽기"
+    },
+    {
+      "target": "exe",
+      "pattern": "^MATLAB\\.exe$|^matlab\\.exe$",
+      "is_regex": true,
+      "category": "focus",
+      "priority": 100,
+      "idle_limit_sec": null
+    },
+    {
+      "target": "exe",
+      "pattern": "Code.exe|pycharm64.exe|spyder.exe|idle.exe|python.exe|pythonw.exe|devenv.exe|WindowsTerminal.exe|cmd.exe|powershell.exe|jupyter-lab.exe",
+      "is_regex": true,
+      "category": "focus",
+      "priority": 100,
+      "idle_limit_sec": null,
+      "note": "코딩"
+    },
+    {
+      "target": "exe",
+      "pattern": "ugraf.exe|Fusion360.exe|SLDWORKS.exe|Inventor.exe|acad.exe|CATIA|catstart.exe",
+      "is_regex": true,
+      "category": "focus",
+      "priority": 100,
+      "idle_limit_sec": null,
+      "note": "CAD (NX=ugraf.exe)"
+    },
+    {
+      "target": "exe",
+      "pattern": "^ANSYS|ansyswbu.exe|AnsysWB|^abq|ABAQUS|^Abaqus|ls-?dyna|lsprepost|COMSOL|hypermesh|AdvantEdge|DEFORM",
+      "is_regex": true,
+      "category": "focus",
+      "priority": 100,
+      "idle_limit_sec": 3600,
+      "note": "해석 — 계산 돌리는 동안 무입력 1시간 허용"
+    },
+    {
+      "target": "exe",
+      "pattern": "WINWORD.EXE|EXCEL.EXE|POWERPNT.EXE|ONENOTE.EXE|Hwp.exe|HwpViewer.exe|Hword.exe|notepad.exe|Notepad.exe|Typora.exe|Obsidian.exe|Notion.exe",
+      "is_regex": true,
+      "category": "focus",
+      "priority": 100,
+      "idle_limit_sec": null,
+      "note": "문서"
+    },
+    {
+      "target": "exe",
+      "pattern": "^Origin\\d*\\.exe$|OriginPro|ImageJ|Fiji|Gwyddion|MountainsMap|Keyence|VK-|Dino",
+      "is_regex": true,
+      "category": "focus",
+      "priority": 100,
+      "idle_limit_sec": null,
+      "note": "데이터 분석·측정 소프트웨어"
+    },
+    {
+      "target": "exe",
+      "pattern": "Zotero.exe|EndNote.exe|MendeleyDesktop.exe|Mendeley Reference Manager.exe",
+      "is_regex": true,
+      "category": "focus",
+      "priority": 100,
+      "idle_limit_sec": null
+    },
+    {
+      "target": "exe",
+      "pattern": "^Claude\\.exe$|^ChatGPT\\.exe$",
+      "is_regex": true,
+      "category": "focus",
+      "priority": 100,
+      "idle_limit_sec": null
+    },
+    {
+      "target": "exe",
+      "pattern": "LeagueClient.exe|LeagueClientUx.exe|League of Legends.exe|RiotClientServices.exe|RiotClientUx.exe|VALORANT|steam.exe|steamwebhelper.exe|Battle.net.exe|EpicGamesLauncher.exe|KartDrift|Overwatch|StarCraft|Minecraft|javaw.exe",
+      "is_regex": true,
+      "category": "distraction",
+      "priority": 100,
+      "idle_limit_sec": null,
+      "note": "게임"
+    },
+    {
+      "target": "exe",
+      "pattern": "KakaoTalk.exe|Discord.exe|Telegram.exe|Slack.exe|LINE.exe|Teams.exe|ms-teams.exe|Zoom.exe",
+      "is_regex": true,
+      "category": "neutral",
+      "priority": 100,
+      "idle_limit_sec": null,
+      "note": "메신저 — 딴짓도 일도 아님"
+    },
+    {
+      "target": "exe",
+      "pattern": "explorer.exe|Taskmgr.exe|SystemSettings.exe|ApplicationFrameHost.exe|SearchHost.exe|StartMenuExperienceHost.exe|ShellExperienceHost.exe|LockApp.exe|mstsc.exe|SnippingTool.exe|ScreenClippingHost.exe",
+      "is_regex": true,
+      "category": "neutral",
+      "priority": 100,
+      "idle_limit_sec": null,
+      "note": "탐색기·시스템"
+    },
+    {
+      "target": "exe",
+      "pattern": "vlc.exe|PotPlayerMini64.exe|PotPlayerMini.exe|PotPlayer64.exe|wmplayer.exe|mpv.exe|GOM.exe",
+      "is_regex": true,
+      "category": "unknown",
+      "priority": 100,
+      "idle_limit_sec": 1800,
+      "note": "동영상 플레이어 — 초고속카메라 영상일 수도 있어 미분류(직접 태깅)"
+    }
+  ]
+}

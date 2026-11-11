@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>로그인 · Orbit</title>
+<link rel="icon" href="/static/horarium.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="apple-touch-icon" href="/static/icon-180.png">
+<link rel="manifest" href="/static/manifest.json">
+<meta name="theme-color" content="#08090a">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<script>(function(){var t='dark';try{t=localStorage.getItem('orbit.theme')||'dark';}catch(e){}t=t==='light'?'light':'dark';document.documentElement.setAttribute('data-theme',t);var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',t==='dark'?'#08090a':'#ffffff');})();</script>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Orbit">
+<style>
+  /* DESIGN §36.4·§37 — Orbit 토큰(§12.2) 그대로. 로그인 전에는 app.css 를 받을 수 없어 필요한 것만 여기에 */
+  @font-face { font-family: "Pretendard Variable"; font-weight: 45 920; font-style: normal; font-display: swap; src: url("/static/PretendardVariable.woff2") format("woff2-variations"), url("/static/PretendardVariable.woff2") format("woff2"); }
+  :root { --bg: #f4f4f2; --surface: #ffffff; --text: #1c1c1a; --text-2: #5c5c58; --text-3: #8c8c87; --line-2: #c8c7c1; --accent: #1f4fd1; --red: #a33a3a; --r: 4px;
+          --font: "Pretendard Variable", Pretendard, Inter, "Malgun Gothic", "Segoe UI", system-ui, sans-serif; --font-serif: Georgia, "Times New Roman", serif; }
+  :root[data-theme="dark"] { --bg: #08090a; --surface: #08090a; --text: #f2f2ef; --text-2: #b4b4ae; --text-3: #7d7d78; --line-2: #3a3d44; --accent: #7c9cff; --red: #ef7b7b; color-scheme: dark; }
+  [data-theme="dark"] .box h1 img { filter: invert(1); }
+  [data-theme="dark"] .box input { background: #121418; }
+  [data-theme="dark"] .box button { color: #0b0c0f; }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; font-family: var(--font); color: var(--text); background: var(--surface); -webkit-tap-highlight-color: transparent; }
+  .box { max-width: 340px; margin: 16vh auto 0; padding: 0 28px; text-align: center; }
+  .box h1 { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 0 0 30px; font-family: "Malgun Gothic", "Segoe UI", -apple-system, system-ui, sans-serif; font-size: 26px; font-weight: 400; letter-spacing: .12em; line-height: 1; }
+  .box h1 .brand-mark { height: 28px; width: 28px; flex: none; }   /* §37.8 마크 옆에 ORBIT, §37.9 위성 = 분침 */
+  .box input { width: 100%; height: 48px; font: inherit; font-size: 16px; padding: 0 14px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--surface); color: var(--text); -webkit-appearance: none; appearance: none; }
+  .box input:focus { outline: none; border-color: var(--accent); }
+  .box button { width: 100%; height: 48px; margin-top: 10px; font: inherit; font-size: 16px; font-weight: 600; border: 1px solid var(--accent); border-radius: var(--r); background: var(--accent); color: #fff; cursor: pointer; }
+  .box button:disabled { opacity: .5; cursor: default; }
+  #msg { margin-top: 12px; font-size: 14px; color: var(--red); min-height: 1.5em; }
+  .hint { margin-top: 20px; font-size: 13px; line-height: 1.6; color: var(--text-3); }
+</style>
+</head>
+<body>
+<form class="box" id="f">
+  <h1><img class="brand-mark" src="/static/logo-mark.svg" alt="">ORBIT</h1>
+  <input type="password" id="pw" placeholder="비밀번호" autocomplete="current-password" autofocus>
+  <button id="go" type="submit">로그인</button>
+  <div id="msg"></div>
+  <div class="hint">이 기기는 60일 동안 로그인된 채로 있습니다.<br>비밀번호는 연구실 PC 의 Orbit → 기록 → 다른 기기 에서 정합니다.</div>
+</form>
+<script>
+/* §37.9 로고의 위성 = 분침 (app.js 의 initOrbitMark 와 같은 일) */
+(function () {
+  var img = document.querySelector('h1 img.brand-mark');
+  if (!img || !window.fetch || !window.DOMParser) return;
+  fetch('/static/logo-mark-clock.svg').then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); }).then(function (txt) {
+    var src = new DOMParser().parseFromString(txt, 'image/svg+xml').documentElement;
+    if (!src || src.nodeName.toLowerCase() !== 'svg' || !src.querySelector('.om-moon')) return;
+    var svg = document.importNode(src, true);
+    svg.setAttribute('class', 'brand-mark'); svg.setAttribute('aria-hidden', 'true');
+    img.parentNode.replaceChild(svg, img);
+    var c = Number((svg.getAttribute('viewBox') || '').split(/[\s,]+/)[2] || 0) / 2, parts = svg.querySelectorAll('.om-gap, .om-moon');
+    var tick = function () {
+      var d = new Date(), a = (d.getMinutes() + d.getSeconds() / 60) * 6;
+      for (var i = 0; i < parts.length; i++) parts[i].setAttribute('transform', 'rotate(' + a.toFixed(2) + ' ' + c + ' ' + c + ')');
+    };
+    tick(); setInterval(tick, 10000);
+  }).catch(function () {});
+})();
+/* DESIGN §36: 이 PC 밖에서 온 요청은 여기서 비밀번호로 로그인한다. next 는 이 사이트 안의 경로만 */
+(function () {
+  var n = new URLSearchParams(location.search).get('next') || '';
+  var next = /^\/(?![\/\\])/.test(n) ? n : '/';
+  var msg = document.getElementById('msg'), go = document.getElementById('go'), pw = document.getElementById('pw');
+  document.getElementById('f').addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (!pw.value) { pw.focus(); return; }
+    go.disabled = true; msg.textContent = '';
+    fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify({ password: pw.value }) })
+      .then(function (r) { return r.json(); })
+      .catch(function () { return { error: '서버에 닿지 못했습니다' }; })
+      .then(function (r) {
+        go.disabled = false;
+        if (r && r.ok) { location.replace(next); return; }
+        msg.textContent = (r && r.error) || '로그인하지 못했습니다'; pw.value = ''; pw.focus();
+      });
+  });
+})();
+</script>
+</body>
+</html>

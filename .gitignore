@@ -1,0 +1,30 @@
+# 개인 데이터 (근태·창 제목·메모) — 절대 커밋하지 않음
+*.db
+*.db-wal
+*.db-shm
+*.log
+notes/
+backup/
+exports/
+rules.json
+rules.json.tmp
+
+# 파이썬
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec
+data/
+names.json
+names.json.tmp
+names.json.bak
+notices.json
+notices.json.tmp
+notices.json.bak
+
+# 이 PC 에만 두는 것 — 되돌리기 사본·바로가기
+static/_bak/
+*.bak
+*.bak.json
+*.lnk

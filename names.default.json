@@ -1,0 +1,222 @@
+{
+  "_설명": "타임라인 표시 이름 규칙 (DESIGN §15). 순서: title 규칙(위에서부터 첫 매치) → 브라우저면 제목에서 strip 정규식 제거 → exe 표 → exe 에서 .exe 뗀 값. title 항목의 exe 는 선택(그 실행파일일 때만 적용). 대소문자 무시. 손편집은 names.json 에 — 이 파일에만 있는 규칙은 names.json 뒤에 자동으로 이어 붙는다(common.load_names_raw). exe 제한 없는 넓은 title 규칙(Adobe 등)은 앱 창 제목(Acrobat, InDesign …)까지 잡아 exe 표를 가리므로 (?! …) 로 앱 이름을 제외한다.",
+  "browsers": [
+    "chrome.exe",
+    "msedge.exe",
+    "firefox.exe",
+    "brave.exe",
+    "whale.exe",
+    "opera.exe"
+  ],
+  "strip": [
+    "\\s*-\\s*(Google )?Chrome$",
+    "\\s*-\\s*프로필 \\d+\\s*-\\s*Microsoft Edge$",
+    "\\s*-\\s*Microsoft Edge$",
+    "\\s*-\\s*Personal$",
+    "\\s*외 페이지 \\d+개",
+    "^\\(\\d+\\)\\s*",
+    "\\s*[-·|]\\s*Chrome$",
+    "^Google Chrome$",
+    "^Microsoft Edge$"
+  ],
+  "title": [
+    {
+      "pattern": "(^|\\\\)claude(\\.exe)?$",
+      "name": "Claude Code",
+      "is_regex": true,
+      "exe": "WindowsTerminal.exe"
+    },
+    {
+      "pattern": "^Program Manager$",
+      "name": "바탕 화면",
+      "is_regex": true,
+      "exe": "explorer.exe"
+    },
+    {
+      "pattern": "ChatGPT",
+      "name": "ChatGPT"
+    },
+    {
+      "pattern": "Claude",
+      "name": "Claude"
+    },
+    {
+      "pattern": "^New chat( - .*)?$",
+      "name": "Claude",
+      "is_regex": true,
+      "note": "claude.ai 새 대화 탭(제목 갱신 전)"
+    },
+    {
+      "pattern": "Gemini",
+      "name": "Gemini"
+    },
+    {
+      "pattern": "Perplexity",
+      "name": "Perplexity"
+    },
+    {
+      "pattern": "GitHub",
+      "name": "GitHub"
+    },
+    {
+      "pattern": "Athenaeum|Paperdesk|MAENG 논문 검색|^논문 읽기",
+      "name": "Athenaeum",
+      "is_regex": true
+    },
+    {
+      "pattern": "(19|20)[0-9]{2} 읽기",
+      "name": "Athenaeum",
+      "is_regex": true
+    },
+    {
+      "pattern": "Horarium|Orbit · 출근기록|MAENG 출근기록",
+      "name": "Orbit",
+      "is_regex": true
+    },
+    {
+      "pattern": "hiyunsang",
+      "name": "GitHub"
+    },
+    {
+      "pattern": "YouTube",
+      "name": "YouTube"
+    },
+    {
+      "pattern": "Instagram",
+      "name": "Instagram"
+    },
+    {
+      "pattern": "네이버 메일",
+      "name": "네이버 메일"
+    },
+    {
+      "pattern": "NAVER|네이버",
+      "name": "네이버",
+      "is_regex": true
+    },
+    {
+      "pattern": "Google 검색",
+      "name": "Google 검색"
+    },
+    {
+      "pattern": "Google Scholar|Google 학술 검색",
+      "name": "Google Scholar",
+      "is_regex": true
+    },
+    {
+      "pattern": "ScienceDirect|doi:10\\.1016/",
+      "name": "ScienceDirect",
+      "is_regex": true
+    },
+    {
+      "pattern": "SpringerLink|Springer",
+      "name": "Springer",
+      "is_regex": true
+    },
+    {
+      "pattern": "Wiley",
+      "name": "Wiley"
+    },
+    {
+      "pattern": "Gmail",
+      "name": "Gmail"
+    },
+    {
+      "pattern": "Notion",
+      "name": "Notion"
+    },
+    {
+      "pattern": "WebRemocon|webremo",
+      "name": "WebRemocon",
+      "is_regex": true
+    },
+    {
+      "pattern": "파고다|PAGODA",
+      "name": "파고다어학원",
+      "is_regex": true
+    },
+    {
+      "pattern": "해커스",
+      "name": "해커스"
+    },
+    {
+      "pattern": "나비엠알오",
+      "name": "나비엠알오"
+    },
+    {
+      "pattern": "쿠팡",
+      "name": "쿠팡"
+    },
+    {
+      "pattern": "\\.pdf",
+      "name": "PDF",
+      "is_regex": true
+    },
+    {
+      "pattern": "Adobe(?! (Acrobat|Reader|InDesign|InCopy|Illustrator|Photoshop|Premiere|After Effects|Lightroom|Bridge|Media Encoder))|Creative Cloud(?! Desktop)",
+      "name": "Adobe",
+      "is_regex": true
+    },
+    {
+      "pattern": "^(RE|FW|FWD)\\s*:",
+      "name": "메일",
+      "is_regex": true
+    }
+  ],
+  "exe": {
+    "claude.exe": "Claude",
+    "ChatGPT.exe": "ChatGPT",
+    "POWERPNT.EXE": "PowerPoint",
+    "WINWORD.EXE": "Word",
+    "EXCEL.EXE": "Excel",
+    "ONENOTE.EXE": "OneNote",
+    "Hwp.exe": "한글",
+    "KakaoTalk.exe": "카카오톡",
+    "explorer.exe": "탐색기",
+    "Code.exe": "VS Code",
+    "MATLAB.exe": "MATLAB",
+    "ugraf.exe": "NX",
+    "Fusion360.exe": "Fusion 360",
+    "Acrobat.exe": "Acrobat",
+    "AcroRd32.exe": "Acrobat",
+    "MAENG_Sync.exe": "측정 프로그램",
+    "WindowsTerminal.exe": "터미널",
+    "cmd.exe": "명령 프롬프트",
+    "powershell.exe": "PowerShell",
+    "python.exe": "Python",
+    "pythonw.exe": "Python",
+    "Discord.exe": "Discord",
+    "Zoom.exe": "Zoom",
+    "Teams.exe": "Teams",
+    "ms-teams.exe": "Teams",
+    "Slack.exe": "Slack",
+    "msedge.exe": "Edge",
+    "chrome.exe": "Chrome",
+    "firefox.exe": "Firefox",
+    "brave.exe": "Brave",
+    "whale.exe": "Whale",
+    "ApplicationFrameHost.exe": "Windows 앱",
+    "SystemSettings.exe": "설정",
+    "Taskmgr.exe": "작업 관리자",
+    "SnippingTool.exe": "캡처 도구",
+    "SearchHost.exe": "검색",
+    "StartMenuExperienceHost.exe": "시작 메뉴",
+    "ShellExperienceHost.exe": "Windows 셸",
+    "sihost.exe": "Windows 셸",
+    "OpenWith.exe": "연결 프로그램",
+    "PickerHost.exe": "파일 선택",
+    "Photos.exe": "사진",
+    "mspaint.exe": "그림판",
+    "notepad.exe": "메모장",
+    "Creative Cloud.exe": "Creative Cloud",
+    "InDesign.exe": "InDesign",
+    "Illustrator.exe": "Illustrator",
+    "Photoshop.exe": "Photoshop",
+    "Obsidian.exe": "Obsidian",
+    "Spotify.exe": "Spotify",
+    "LeagueClient.exe": "League of Legends",
+    "League of Legends.exe": "League of Legends",
+    "steam.exe": "Steam"
+  },
+  "version": 2
+}
