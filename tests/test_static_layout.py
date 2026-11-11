@@ -457,7 +457,7 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertNotIn("var(--accent)", block, "§41 폰 규칙은 강조색을 쓰지 않는다")
         for fn in ("function markRail(p)", "function syncRail()", "function phoneSpy()", "function phoneScrollTo(p, smooth)"):
             self.assertIn(fn, self.js)
-        self.assertIn("m.classList.toggle('pg-home', !tl);", self.js, "§41 타임라인만 따로 화면, 나머지는 한 장")
+        self.assertIn("m.classList.toggle('pg-home', !tl || split);", self.js, "§41 타임라인만 따로 화면, 나머지는 한 장")
         self.assertNotIn("pt-list", self.js, "§41 '오늘' 화면의 줄인 할 일 목록은 없다 — 전체 목록이 바로 아래에 있다")
 
     def test_linear_orbit_design_42(self):
@@ -473,7 +473,7 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertIn("var sp = $('splash'); if (sp && sp.parentNode) sp.parentNode.removeChild(sp);", self.js, "움직임이 멈춘 창에서도 시작 화면을 걷어 낸다")
         # 하루 궤도
         self.assertIn('<svg id="orbit-svg" viewBox="0 0 240 240"', self.html)
-        for fn in ("function todoProgress()", "function orbitArc(r, d0, d1)", "function renderPhoneStrip(spans, startHour, endHour, today, now)"):
+        for fn in ("function todoProgress()", "function orbitArc(r, d0, d1, c)", "function renderPhoneStrip(spans, startHour, endHour, today, now)"):
             self.assertIn(fn, self.js)
         self.assertNotIn("ps-bar", self.js, "§42 가로 하루 띠는 궤도로 대체")
         for cls in (".ob-track", ".ob-arc", ".ob-prog", ".ob-now"):
@@ -540,13 +540,52 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertNotIn("isPhone()", self.js, "§49 폰·PC 구분 없이 같은 화면 — 폭은 isSplit() 하나")
         self.assertIn("var splitMQ = window.matchMedia ? window.matchMedia('(min-width: 1100px)') : null;", self.js)
         self.assertIn("m.classList.toggle('pg-split', split);", self.js)
-        self.assertIn("if (split && p === 'timeline') p = 'today';", self.js, "나란히면 타임라인 화면이 따로 없다")
-        self.assertIn('<nav id="tl-tabs" class="tl-tabs"', self.html, "나란히일 때 왼쪽 위 하루·주·월")
-        self.assertIn('id="tl-prev"', self.html)
         self.assertIn("#main.pg-split > #timeline-wrap, #main.pg-split > #week-wrap, #main.pg-split > #month-wrap { position: fixed;", self.css,
-                      "왼쪽 타임라인은 붙박이 — 오른쪽 한 장만 스크롤")
-        self.assertIn('#main.pg-split ~ #phone-rail a[data-sec="timeline"] { display: none; }', self.css)
+                      "왼쪽 무대는 붙박이 — 오른쪽 한 장만 스크롤")
         self.assertIn("#main { display: grid; grid-template-columns: minmax(0px, 1fr); }", self.css, "옛 오른쪽 300px 판은 없다")
+
+    def test_big_orbit_design_50(self):
+        """§50 넓은 창은 큰 궤도 — 같은 하루를 두 번(세로 타임라인 + 원) 그리지 않는다."""
+        self.assertIsNotNone(re.search(r"^##\s*50\.", self.design, re.M), "DESIGN.md 에 §50 이 없다")
+        # §49 의 왼쪽 위 띠와 '나란히면 타임라인 화면이 없다' 는 없앴다 — 타임라인은 폰처럼 따로 화면(무대가 바뀐다)
+        for gone in ("tl-tabs", "tl-seg", "tl-prev"):
+            self.assertNotIn(gone, self.html, "§50 왼쪽 위 띠는 없앴다")
+            self.assertNotIn(gone, self.js)
+        self.assertNotIn("if (split && p === 'timeline') p = 'today';", self.js)
+        self.assertNotIn('a[data-sec="timeline"] { display: none; }', self.css, "세로 바의 '타임라인' 은 넓은 창에서도 보인다")
+        self.assertIn("function onTimelinePage() { return phonePage() === 'timeline'; }", self.js)
+        self.assertIn("m.classList.toggle('stage-tl', split && tl);", self.js, "나란히: 무대가 타임라인")
+        self.assertIn("m.classList.toggle('pg-home', !tl || split);", self.js, "나란히에서는 오른쪽 한 장이 늘 보인다")
+        self.assertIn("#main.phone-pages.pg-split.stage-tl > #timeline-wrap:not([hidden])", self.css)
+        self.assertIn("#main.phone-pages.pg-split.stage-tl > .phone-hero { display: none; }", self.css, "타임라인 무대에서는 궤도를 같이 띄우지 않는다")
+        # 무대: 머리 + 큰 궤도 + 작은 궤도 줄 (모두 붙박이)
+        self.assertIn("#main.phone-pages.pg-split > .phone-head { position: fixed;", self.css)
+        self.assertIn("#main.phone-pages.pg-split > .phone-hero { display: flex; flex-direction: column; position: fixed;", self.css)
+        self.assertIn("width: min(100cqw, 100cqh, 840px);", self.css, "남는 자리에 들어가는 가장 큰 정사각형")
+        self.assertIn(".ob-cats, .ob-stats, .orbit-hov, .ob-strip { display: none; }", self.css, "좁은 창에서는 작은 궤도 그대로")
+        for el in ('class="orbit-box"', 'id="ob-cats"', 'id="ob-stats"', 'id="orbit-hov"', 'id="ob-strip"', 'id="obs-seg"', 'id="obs-days"', 'id="obs-prev"'):
+            self.assertIn(el, self.html)
+        hero = self.html[self.html.index('id="phone-strip"'):self.html.index('id="timeline-wrap"')]
+        self.assertIn('id="ob-strip"', hero, "작은 궤도 줄은 궤도와 같은 무대 안")
+        # 큰 궤도: 치수 · 눈금 · 고리 안 · 구간에 올리기/누르기
+        self.assertIn("var OB_BIG = { box: 600,", self.js)
+        self.assertIn("var big = isSplit(), G = big ? OB_BIG : OB_SMALL", self.js)
+        self.assertIn("function renderOrbitInside(sm, parts)", self.js)
+        self.assertIn("sm.by_category", self.js, "고리 안은 카테고리별 시간")
+        self.assertIn("function orbitHover(i)", self.js)
+        hov = self.js[self.js.index("function initOrbitHover()"):self.js.index("// ------------------------------------------------------------ §50 작은 궤도 줄")]
+        self.assertIn("openPopover({ kind: 'span', span: sp }, e);", hov, "구간을 누르면 세로 타임라인과 같은 분류 팝오버")
+        self.assertIn("isSplit()", hov, "좁은 창의 작은 궤도는 그대로(누르면 타임라인 화면)")
+        # 작은 궤도 줄: /api/range 만 쓴다(새 API 없음), 주는 구간까지 · 월은 요약만
+        ls = self.js[self.js.index("function loadStrip(force)"):self.js.index("function miniOrbit(")]
+        self.assertIn("'/api/range?start='", ls)
+        self.assertIn("(strip.mode === 'week' ? 1 : 0)", ls)
+        self.assertIn("if (!isSplit() || !state.date", ls, "좁은 창에서는 받지 않는다")
+        self.assertIn("STRIP_STALE_MS", ls)
+        self.assertIn("var STRIP_KEY = 'orbit.strip'", self.js)
+        self.assertIn("function stripMove(dir)", self.js)
+        self.assertIn("if (nd > todayStr()) nd = todayStr();", self.js, "줄의 › 는 오늘까지만")
+        self.assertIn("loadStrip(false);                                             // §50", self.js, "하루를 받으면 줄도 맞춘다")
 
     def test_design_19_documented(self):
         self.assertIsNotNone(

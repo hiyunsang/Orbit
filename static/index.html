@@ -84,16 +84,26 @@
       </div>
     </dl>
   </section>
-  <!-- 히어로 (§42): 폰 맨 위 — 하루 궤도(24시간 원: 바깥 고리 = 타임라인, 안쪽 = 할 일 진행률, 위성 = 지금. 누르면 타임라인) + 가운데 활동 시간 + 조용한 한 줄 -->
+  <!-- 히어로 (§42): 하루 궤도(24시간 원: 바깥 고리 = 타임라인, 안쪽 = 할 일 진행률, 위성 = 지금) + 가운데 활동 시간.
+       좁은 창: 맨 위에 작게, 누르면 타임라인. 넓은 창(§50): 왼쪽 무대에 크게 — 고리 안에 카테고리별 시간, 아래에 주·월 작은 궤도 줄 -->
   <section id="phone-strip" class="phone-hero" aria-label="오늘 활동">
-    <div class="orbit" id="ps-tap" role="button" tabindex="0" aria-label="타임라인 크게 보기">
-      <svg id="orbit-svg" viewBox="0 0 240 240" aria-hidden="true"></svg>
-      <div class="orbit-c"><div class="orbit-l">활동</div><div class="hero-num" id="hero-num">—</div><div class="orbit-sub" id="hero-attend"></div></div>
+    <div class="orbit-box">
+      <div class="orbit" id="ps-tap" role="button" tabindex="0" aria-label="하루 궤도">
+        <svg id="orbit-svg" viewBox="0 0 240 240" aria-hidden="true"></svg>
+        <div class="orbit-c">
+          <div class="orbit-l">활동</div><div class="hero-num" id="hero-num">—</div><div class="orbit-sub" id="hero-attend"></div>
+          <ul class="ob-cats" id="ob-cats"></ul>
+          <div class="ob-stats" id="ob-stats"></div>
+          <div class="orbit-hov" id="orbit-hov"></div>
+        </div>
+      </div>
     </div>
     <div class="hero-foot"><span id="hero-foot"></span><button class="hero-more" id="hero-more" type="button">자세히 ›</button></div>
+    <div class="ob-strip" id="ob-strip" aria-label="주 · 월">
+      <div class="obs-head"><div class="pseg" id="obs-seg"><button type="button" data-mode="week">주</button><button type="button" data-mode="month">월</button></div><span class="obs-sum" id="obs-sum"></span><span class="obs-mv"><button class="rb" id="obs-prev" type="button" aria-label="이전">‹</button><button class="rb" id="obs-next" type="button" aria-label="다음">›</button></span></div>
+      <div class="obs-days" id="obs-days"></div>
+    </div>
   </section>
-  <!-- §49 넓은 창(1100px~)에서 왼쪽 타임라인 위: 하루 · 주 · 월 -->
-  <nav id="tl-tabs" class="tl-tabs" aria-label="보기"><div class="pseg" id="tl-seg"><button type="button" data-view="day">하루</button><button type="button" data-view="week">주</button><button type="button" data-view="month">월</button></div><span class="tl-tabs-d" id="tl-tabs-d"></span><span class="tl-mv"><button class="rb" id="tl-prev" type="button" aria-label="이전">‹</button><button class="rb" id="tl-next" type="button" aria-label="다음">›</button></span></nav>
   <section id="timeline-wrap" aria-label="타임라인">
     <div class="zoom-bar" role="group" aria-label="시간축 배율">
       <button class="act zoom-out" title="시간축 축소 (Ctrl+휠 아래)">−</button>

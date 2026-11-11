@@ -11,7 +11,7 @@
 - **`DESIGN.md` 가 설계 계약서다. 바꿔야 하면 이 문서를 먼저 고친다.** 새 절은 파일 끝에 다음 번호로.
 - 파이썬 3.8.6(`C:\Users\PC1\AppData\Local\Programs\Python\Python38\python.exe`) + 표준 라이브러리 + pywin32 만. 외부 패키지 금지.
 - `engine.py` 는 순수 함수만 — I/O 없음, win32 import 금지.
-- 프론트는 바닐라 JS/SVG, 외부 리소스 0(글꼴도 `static\` 에 — Pretendard · Geist). 디자인은 DESIGN §40~§43(Linear·Vercel 쪽: 어두운 화면 기본, 굵기 400·500, 강조색 없음). **§49 부터 PC 도 폰과 같은 화면**(폰 CSS 가 모든 폭, 1100px 이상은 왼쪽 타임라인 + 오른쪽 한 장) — 넓은 창 전용 배치를 새로 만들지 말 것. §12 의 accent `#1f4fd1` 은 밝은 화면에만 남아 있다.
+- 프론트는 바닐라 JS/SVG, 외부 리소스 0(글꼴도 `static\` 에 — Pretendard · Geist). 디자인은 DESIGN §40~§43(Linear·Vercel 쪽: 어두운 화면 기본, 굵기 400·500, 강조색 없음). **§49 부터 PC 도 폰과 같은 화면**(폰 CSS 가 모든 폭) — 넓은 창 전용 배치를 새로 만들지 말 것. **§50: 1100px 이상은 왼쪽 무대에 큰 하루 궤도 + 주·월 작은 궤도 줄, 오른쪽 한 장** — 같은 하루를 세로 타임라인과 원으로 두 번 띄우지 않는다(세로 타임라인은 세로 바의 '타임라인' 을 눌렀을 때만). 원(궤도)을 먼저 쓴다. §12 의 accent `#1f4fd1` 은 밝은 화면에만 남아 있다.
 - DB 변경은 `common.SCHEMA` 에 `CREATE TABLE IF NOT EXISTS` 추가뿐.
 
 ## 절대 하지 말 것
