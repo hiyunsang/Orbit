@@ -499,6 +499,17 @@ class StaticLayoutTest(unittest.TestCase):
         gen = io.open(os.path.join(ROOT, "logo", "make_orbit.py"), encoding="utf-8").read()
         self.assertIn('ICON_BG, ICON_INK = "#000000", "#f2f2ef"', gen)
 
+    def test_geist_font_design_43(self):
+        self.assertIsNotNone(re.search(r"^##\s*43\.", self.design, re.M), "DESIGN.md 에 §43 이 없다")
+        for fam, f in (("Geist", "GeistVariable.woff2"), ("Geist Mono", "GeistMonoVariable.woff2")):
+            self.assertIn('@font-face { font-family: "%s"; font-weight: 100 900;' % fam, self.css)
+            self.assertIn('url("/static/%s")' % f, self.css)
+            with io.open(os.path.join(ROOT, "static", f), "rb") as fh:
+                self.assertEqual(fh.read(4), b"wOF2", "§43 %s 는 woff2 글꼴 파일" % f)
+        self.assertTrue(os.path.isfile(os.path.join(ROOT, "static", "Geist-LICENSE.txt")), "§43 OFL 사용권 파일을 글꼴 곁에")
+        self.assertIn('--font: "Geist", "Pretendard Variable",', self.css, "§43 라틴은 Geist, 한글은 Pretendard")
+        self.assertNotIn("fonts.googleapis", self.css + self.html, "외부 리소스 0 — 글꼴도 static 에서")
+
     def test_design_19_documented(self):
         self.assertIsNotNone(
             re.search(r"^##\s*19\.", self.design, re.M),

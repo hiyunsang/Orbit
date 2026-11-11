@@ -1461,3 +1461,12 @@ Anki 가 스스로 안 하니 호라리움이 눌러 준다. 단, **애드온이
 - 실측(목업 430×932): 궤도 호 14개 + 위성 + 진행률, 타일 9개의 미리 보기 글, 타일 펼침/접힘(펼치면 두 칸), 세로 바 → 접힌 칸 펼치고 이동, 가로 넘침 0, 1280 배치 불변.
 - 못 본 것: 실제 아이폰, 시작 화면의 움직임과 흰 날·부드러운 이동(가려진 브라우저 창에서는 움직임이 돌지 않는다).
 - 되돌리기: `static\_bak\pre42_*`(§41 상태).
+
+## 43. 글꼴 Geist (2026-11-11) — static/*
+
+§41 에서 폰 글꼴 줄 맨 앞에 "Geist" 를 이름만 걸어 두었다(파일 없음). 사용자 *"Geist 글꼴 내려받아도 돼"* 뒤에 넣었다.
+- 출처: npm `geist@1.8.2`(Vercel 공식, SIL Open Font License 1.1). 1.9.x 는 나온 지 2주가 안 돼 그 앞 판을 골랐다. 변수 글꼴 둘(굵기 100~900): `static/GeistVariable.woff2`(68KB) · `static/GeistMonoVariable.woff2`(69KB), 사용권 `static/Geist-LICENSE.txt`. 외부 리소스 0 원칙대로 자기 서버에서 낸다.
+- `--font` 맨 앞에 "Geist" — **라틴 글자·숫자·기호는 Geist, 한글은 Geist 에 없으니 다음 글꼴**(넓은 창 Pretendard, 폰 아이폰 자체 글꼴 → Pretendard). 숫자 폭 맞춤(`tnum`)이 있어 body 의 `tabular-nums` 그대로. `·` `—` `→` `‹` `›` 도 있다.
+- `--mono`(§41)는 이미 "Geist Mono" 가 맨 앞 — `D-3` · 궤도 눈금 같은 숫자뿐인 곳.
+- 로그인 화면(§36)은 Pretendard 그대로 — 로그인 전에 열리는 정적 파일 목록(`_OPEN_STATIC`)을 늘리지 않으려고 `server.py` 는 손대지 않았다.
+- 검증: `test_static_layout.py::test_geist_font_design_43`(@font-face 둘, 파일 머리 `wOF2`, 사용권, `--font` 순서, 외부 글꼴 주소 없음). 실측: `document.fonts` 에 두 글꼴이 loaded, 430·1280 화면.

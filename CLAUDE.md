@@ -11,13 +11,20 @@
 - **`DESIGN.md` 가 설계 계약서다. 바꿔야 하면 이 문서를 먼저 고친다.** 새 절은 파일 끝에 다음 번호로.
 - 파이썬 3.8.6(`C:\Users\PC1\AppData\Local\Programs\Python\Python38\python.exe`) + 표준 라이브러리 + pywin32 만. 외부 패키지 금지.
 - `engine.py` 는 순수 함수만 — I/O 없음, win32 import 금지.
-- 프론트는 바닐라 JS/SVG, 외부 리소스 0. 디자인은 DESIGN §12(카드·그림자·알약·이모지 금지, accent `#1f4fd1` 하나).
+- 프론트는 바닐라 JS/SVG, 외부 리소스 0(글꼴도 `static\` 에 — Pretendard · Geist). 디자인은 DESIGN §40~§43(Linear·Vercel 쪽: 어두운 화면 기본, 굵기 400·500, 강조색 없음). §12 의 accent `#1f4fd1` 은 밝은 화면에만 남아 있다.
 - DB 변경은 `common.SCHEMA` 에 `CREATE TABLE IF NOT EXISTS` 추가뿐.
 
 ## 절대 하지 말 것
 
 - **샌드박스에서 이 앱을 실제 DB(`data\worklog.db`)로 띄우지 않는다.** `%LOCALAPPDATA%` 가상화 때문에 사용자 수집기와 다른 DB 사본에 써서 기록이 유실된 적이 있다. UI 확인은 정적 파일만 서빙하거나 `?mock=1` 목업으로.
 - **에이전트를 띄울 때는 몇 개가 어떤 모델로 도는지 먼저 한 줄로 알린다.** 검토 3 + 검증 2 를 넘으면 먼저 묻는다. 세션 설정(ultracode)보다 이 규칙이 우선. UI 손질·작은 버그는 에이전트 없이 직접 고치고 스크린샷으로 확인.
+
+## 저장소
+
+- github.com/hiyunsang/Orbit — **비공개**(2026-11-11 만듦). 기능 단위로 커밋하고 `git push origin main`. 메시지는 한국어로 무엇을 왜.
+- 올리지 않는 것은 `.gitignore`: `data\`(기록 DB·서랍·다른 기기 설정·로그·학사일정) · `notes\` · 사용자별 `rules/names/notices.json` · `static\_bak\` · `*.bak` · `*.lnk`. 커밋 전에 `git status` 로 확인.
+- 줄바꿈은 `.gitattributes` 로 LF 고정(bat·vbs 만 CRLF).
+- 공개로 바꾸려면 먼저 거를 것: DESIGN §16(장학 수혜 상황) · HANDOFF(이 PC 사정·작업 기록) · 테일넷 주소(`share_tailnet.py` · HANDOFF).
 
 ## 테스트·배포
 
