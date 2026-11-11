@@ -1,14 +1,28 @@
-Orbit
-Copyright (c) 2026 hiyunsang. All rights reserved.
+Orbit Beta License
+Copyright (c) 2026 hiyunsang
 
-This repository is public for viewing only. No license is granted.
+Orbit is in beta. Anyone may use it for free.
 
-Without prior written permission from the copyright holder, you may not
-use, copy, modify, merge, publish, distribute, sublicense, or sell any part
-of this software, in source or compiled form.
+You may:
+  - download, install and use Orbit on your own computers for any
+    non-commercial purpose, including personal use, study, research,
+    and use in a school or a lab;
+  - read the source code and change it for your own use;
+  - share unmodified copies for free, as long as this license file
+    stays with them.
 
-Viewing and forking this repository on GitHub is allowed only to the extent
-required by the GitHub Terms of Service.
+You may not, without written permission from the copyright holder:
+  - sell Orbit or a modified version of it, or charge for access to it;
+  - put Orbit, or a substantial part of its code, into another product
+    or service that is sold or offered commercially;
+  - remove or change this license or the copyright notice.
+
+No warranty. Orbit is provided "as is", without warranty of any kind.
+The copyright holder is not liable for lost data or any other damage
+that comes from using it.
+
+Later versions may be released under different terms. A copy you
+received under this license stays under this license.
 
 Third-party files keep their own licenses:
 
@@ -24,15 +38,28 @@ Third-party files keep their own licenses:
 
 --------------------------------------------------------------------------
 
-Orbit
-저작권 (c) 2026 hiyunsang. 모든 권리 보유.
+Orbit 베타 사용권
+저작권 (c) 2026 hiyunsang
 
-이 저장소는 보기만 할 수 있게 공개한 것이며, 어떤 사용권도 주지 않습니다.
+Orbit 은 베타입니다. 누구나 무료로 쓸 수 있습니다.
 
-저작권자의 서면 허락 없이 이 소프트웨어의 어느 부분도 사용·복사·수정·배포·
-재허락·판매할 수 없습니다. 소스든 실행 파일이든 같습니다.
+할 수 있는 것:
+  - 비상업 목적이면 무엇이든 — 개인 사용, 공부, 연구, 학교·연구실에서
+    쓰는 것 모두 — 자기 컴퓨터에 내려받아 설치하고 쓰기
+  - 소스 코드를 읽고, 자기가 쓰려고 고치기
+  - 고치지 않은 사본을 무료로 나눠 주기 (이 사용권 파일을 함께 둘 것)
 
-깃허브에서 보고 포크하는 것은 깃허브 이용약관이 요구하는 만큼만 허용됩니다.
+저작권자의 서면 허락 없이는 할 수 없는 것:
+  - Orbit 이나 고친 판을 팔거나, 쓰는 데 돈을 받기
+  - Orbit 이나 그 코드의 상당 부분을 팔거나 상업적으로 내놓는 다른
+    제품·서비스에 넣기
+  - 이 사용권이나 저작권 표시를 지우거나 바꾸기
+
+보증 없음. Orbit 은 있는 그대로 제공되며, 쓰다가 생긴 기록 유실이나
+그 밖의 손해에 저작권자는 책임지지 않습니다.
+
+나중 판은 다른 조건으로 낼 수 있습니다. 이 사용권으로 받은 사본은
+계속 이 사용권을 따릅니다.
 
 글꼴 파일은 각자의 사용권(SIL OFL 1.1)을 따르고, tests/fixtures 의 HTML 은
 테스트용으로 저장한 홍익대 누리집 화면이며 원래 주인의 것입니다.
