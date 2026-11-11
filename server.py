@@ -2412,6 +2412,9 @@ class Server(ThreadingHTTPServer):
     daemon_threads = True
     # Windows 에서 SO_REUSEADDR 를 켜면 이미 쓰는 포트에도 bind 가 성공해 버리므로 끈다.
     allow_reuse_address = False
+    # §48 기본 대기열 5 — 폰(테일넷 HTTPS)은 앱으로 돌아올 때 요청 스무 개쯤을 한꺼번에 보낸다. 넘친 연결은 윈도우가
+    # 끊고 테일스케일이 502 를 돌려줬다(실측: 동시에 20개 → 502 5개). Athenaeum 도 같은 이유로 64.
+    request_queue_size = 128
 
 
 # ------------------------------------------------------------------ 시작
@@ -2443,7 +2446,7 @@ def _port_in_use(host, port):
 
 
 BIND_RETRY_SEC = 10.0
-BIND_RETRY_INTERVAL = 0.5
+BIND_RETRY_INTERVAL = 0.1      # §48 재시작 때 아무도 안 받는 틈을 줄인다(0.5 → 0.1초)
 
 
 def _is_in_use_error(e):

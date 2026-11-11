@@ -187,18 +187,45 @@
   }
 
   // ------------------------------------------------------------ 토스트
+  // §48 같은 문구가 이미 떠 있으면 새로 쌓지 않고 그 토스트의 시간만 늘린다. 한꺼번에 TOAST_MAX 개까지(오래된 것부터 뺀다).
+  var TOAST_MAX = 3;
   function toast(msg, ms) {
     var wrap = $('toast-wrap');
+    for (var i = 0; i < wrap.children.length; i++) {
+      var k = wrap.children[i];
+      if (k._hide && k.textContent === msg) { clearTimeout(k._hide); armToast(k, ms); return; }
+    }
+    while (wrap.children.length >= TOAST_MAX) wrap.removeChild(wrap.firstChild);
     var el = h('div', { class: 'toast', text: msg });
     wrap.appendChild(el);
     requestAnimationFrame(function () { el.classList.add('show'); });
-    setTimeout(function () {
+    armToast(el, ms);
+  }
+  function armToast(el, ms) {
+    el._hide = setTimeout(function () {
+      el._hide = null;
       el.classList.remove('show');
       setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 250);
     }, ms || 3000);
   }
 
   // ------------------------------------------------------------ API
+  // §48 GET 은 연결이 잠깐 끊겼을 때(서버 재시작 틈, 테일넷 프록시의 502·503·504) 조용히 다시 묻는다 — 0.4·1·2.5초 뒤.
+  // POST 는 다시 보내지 않는다(두 번 적힐 수 있다).
+  var GET_RETRY_MS = [400, 1000, 2500];
+  var RETRY_STATUS = { 502: true, 503: true, 504: true };
+  function fetchGet(path, opt, n) {
+    function again() {
+      return new Promise(function (res) { setTimeout(res, GET_RETRY_MS[n]); })
+        .then(function () { return fetchGet(path, opt, n + 1); });
+    }
+    return fetch(path, opt).then(function (r) {
+      return (RETRY_STATUS[r.status] && n < GET_RETRY_MS.length) ? again() : r;
+    }, function (e) {
+      if (n < GET_RETRY_MS.length) return again();
+      throw e;
+    });
+  }
   var api = function (path, body) {
     if (MOCK) return mockApi(path, body);
     var opt = { method: 'GET', headers: {} };
@@ -207,7 +234,7 @@
       opt.headers['Content-Type'] = 'application/json; charset=utf-8';
       opt.body = JSON.stringify(body);
     }
-    return fetch(path, opt).then(function (r) {
+    return (opt.method === 'GET' ? fetchGet(path, opt, 0) : fetch(path, opt)).then(function (r) {
       return r.json().catch(function () { return { error: 'HTTP ' + r.status }; }).then(function (j) {
         if (r.status === 401 && j && j.login) {          // §36 밖에서 연 화면의 로그인이 풀렸다 → 로그인 화면으로
           location.href = '/login?next=' + encodeURIComponent(location.pathname + location.search);
@@ -219,10 +246,12 @@
       });
     });
   };
+  // §48 연결 문제(502·503·504, 브라우저의 네트워크 오류)는 불러오는 것마다 따로 띄우지 않고 한 줄로 — toast 가 같은 문구를 묶는다
+  var NET_ERR = /^HTTP 50[234]$|Failed to fetch|Load failed|NetworkError|network connection/i;
   function fail(prefix) {
     return function (e) {
       var msg = (e && e.message) ? e.message : String(e);
-      toast((prefix ? prefix + ': ' : '') + msg);
+      toast(NET_ERR.test(msg) ? '서버에 잠깐 닿지 못했습니다 — 안 되면 새로 고침' : (prefix ? prefix + ': ' : '') + msg);
       console.warn(prefix, e);
     };
   }
@@ -1974,8 +2003,13 @@
     });
   }
   // 창에 돌아왔을 때, 또는 켜 둔 채 안 쓰는 동안 옆 판을 다시 받는다 (다른 기기에서 적은 것이 보이게)
+  var sideAt = 0;
   function refreshSide() {
     if (!state.date || state.popover) return;
+    // §48 앱으로 돌아오면 focus 와 visibilitychange 가 같이 와서 같은 요청을 두 벌 보냈다 — 2초 안의 두 번째는 건너뛴다
+    var t = Date.now();
+    if (t - sideAt < 2000) return;
+    sideAt = t;
     loadTodos(); loadNight(); loadBudget(); loadSchedule(); loadEvents();
     loadDrawer();
     refreshNotes();
