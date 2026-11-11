@@ -9,7 +9,8 @@ Orbit 로고 생성기 (DESIGN §37) — 옛 이름 Horarium 의 금색 H(make_l
 
 실행(개발 도구, 앱 실행에는 필요 없음):  C:\\Users\\PC1\\anaconda3\\python.exe logo\\make_orbit.py
 내놓는 것: ..\\static\\ logo-mark.svg · favicon.svg · icon-180/192/512.png · horarium.ico, ..\\app_icon.ico(§44)
-          이 폴더  orbit.ico(바탕화면 바로가기) · orbit-preview.png · wordmark-o.svg(마크가 O 인 판, 보관)
+          이 폴더  orbit-mono.ico(바탕화면·시작 메뉴 바로가기) · orbit-preview.png · wordmark-o.svg(마크가 O 인 판, 보관)
+          §45: PC 아이콘(.ico)·탭 아이콘(favicon.svg)은 바탕 없이 한 가지 색, 폰 아이콘(.png)만 검은 바탕 + 밝은 마크
 """
 import io
 import math
@@ -27,7 +28,8 @@ STATIC = os.path.join(ROOT, "static")
 FONT = r"C:\Windows\Fonts\malgun.ttf"
 TRACK = 0.14                      # 자간 (em)
 INK, BLUE, WHITE = "#1c1c1a", "#1f4fd1", "#ffffff"
-ICON_BG, ICON_INK = "#000000", "#f2f2ef"      # §39.1 아이콘·파비콘은 테마와 무관하게 검은 바탕 + 밝은 마크(우주)
+ICON_BG, ICON_INK = "#000000", "#f2f2ef"      # §39.1 폰 아이콘(.png)은 검은 바탕 + 밝은 마크(우주)
+PC_INK, PC_SCALE = INK, 0.88                  # §45 PC 아이콘(.ico)은 바탕 없이 검은 마크 하나 — 윈도우가 밝은 테마(작업 표시줄·시작 메뉴)
 
 # ---- 모양 (§37.6 미니멀, 2026-11-11 사용자: "그냥 색 없이 가운데 원에 더 얇은 고리로 … 미니멀하게") ----
 RING = 0.48                       # 고리 굵기 / O 획 굵기 (처음 판 0.90, §37.6 A 0.55, §37.7 C 를 조금 더 얇게)
@@ -183,8 +185,9 @@ def icon_ring(size):
     return ICON_RING_BIG
 
 
-def render_icon(size, bg="square", scale=0.70):
-    """size px 아이콘. bg: 'square' 흰 정사각 / 'disc' 흰 원판 / None 투명. scale = 고리 바깥 지름 / size"""
+def render_icon(size, bg="square", scale=0.70, ink=None):
+    """size px 아이콘. bg: 'square' 정사각 / 'disc' 원판 / None 투명(§45). scale = 고리 바깥 지름 / size. ink = 마크 색(없으면 ICON_INK)"""
+    col = rgb(ink or ICON_INK) + (255,)
     ss = 8
     S = size * ss
     img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
@@ -199,7 +202,7 @@ def render_icon(size, bg="square", scale=0.70):
     geo = orbit_geom(ro, s)
     ring = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     rd = ImageDraw.Draw(ring)
-    rd.ellipse([c - ro, c - ro, c + ro, c + ro], fill=rgb(ICON_INK) + (255,))
+    rd.ellipse([c - ro, c - ro, c + ro, c + ro], fill=col)
     ri = ro - s
     rd.ellipse([c - ri, c - ri, c + ri, c + ri], fill=(0, 0, 0, 0))
     mx, my = c + geo["mx"], c - geo["my"]
@@ -209,10 +212,10 @@ def render_icon(size, bg="square", scale=0.70):
     img = Image.alpha_composite(img, ring)
     d = ImageDraw.Draw(img)
     p = geo["p"]
-    d.ellipse([c - p, c - p, c + p, c + p], fill=rgb(ICON_INK) + (255,))
+    d.ellipse([c - p, c - p, c + p, c + p], fill=col)
     if geo["m"] > 0:
         m = geo["m"]
-        d.ellipse([mx - m, my - m, mx + m, my + m], fill=rgb(ICON_INK) + (255,))
+        d.ellipse([mx - m, my - m, mx + m, my + m], fill=col)
     return img.resize((size, size), Image.LANCZOS)
 
 
@@ -229,7 +232,7 @@ def preview_sheet(path):
     sheet.paste(Image.new("RGBA", (W, 128 + 40), (40, 44, 52, 255)), (0, 128 + 40))
     x = 40
     for n in sizes:
-        ic = render_icon(n, "disc", 0.84)
+        ic = render_icon(n, None, PC_SCALE, ink=PC_INK)          # §45 PC 아이콘 — 어두운 줄에서는 안 보이는 게 맞다
         for row in (0, 1):
             sheet.alpha_composite(ic, (x, row * (128 + 40) + 20 + (128 - n) // 2))
         x += n + 40
@@ -243,13 +246,15 @@ def main(static=STATIC, here=HERE):
     write(os.path.join(here, "wordmark-o.svg"), wm)          # §37.8 화면에서는 안 쓴다(마크 옆에 글자) — 마크가 O 인 판은 보관만
     write(os.path.join(static, "logo-mark.svg"), build_mark_svg())
     write(os.path.join(static, "logo-mark-clock.svg"), build_mark_svg_clock())   # §37.9 헤더·로그인에서 분침으로 돌린다
-    write(os.path.join(static, "favicon.svg"), build_mark_svg(pad=stroke() * 1.2, backing=True).replace(INK, ICON_INK).replace(WHITE, ICON_BG))
+    fav = build_mark_svg(pad=stroke() * 0.6).replace(INK, "currentColor")      # §45 바탕 없이 한 가지 색
+    fav = fav.replace('role="img" aria-label="Orbit">', 'role="img" aria-label="Orbit"><style>:root{color:%s}@media (prefers-color-scheme:dark){:root{color:%s}}</style>' % (INK, ICON_INK), 1)
+    write(os.path.join(static, "favicon.svg"), fav)
     for n in (180, 192, 512):
         render_icon(n, "square", 0.62).save(os.path.join(static, "icon-%d.png" % n))
         print("   static/icon-%d.png" % n)
     ico_sizes = [16, 24, 32, 48, 64, 128, 256]
-    imgs = [render_icon(n, "disc", 0.84) for n in ico_sizes]
-    for target in (os.path.join(static, "horarium.ico"), os.path.join(here, "orbit.ico"), os.path.join(ROOT, "app_icon.ico")):   # §44 app_icon.ico 도
+    imgs = [render_icon(n, None, PC_SCALE, ink=PC_INK) for n in ico_sizes]       # §45 바탕 없이 검은 마크 하나
+    for target in (os.path.join(static, "horarium.ico"), os.path.join(here, "orbit-mono.ico"), os.path.join(ROOT, "app_icon.ico")):   # §44 app_icon.ico 도
         imgs[-1].save(target, format="ICO", sizes=[(n, n) for n in ico_sizes], append_images=imgs[:-1])
         print("  ", os.path.relpath(target, ROOT))
     preview_sheet(os.path.join(here, "orbit-preview.png"))

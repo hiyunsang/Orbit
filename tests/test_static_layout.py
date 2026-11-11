@@ -396,7 +396,7 @@ class StaticLayoutTest(unittest.TestCase):
         for f in ("logo-mark.svg", "favicon.svg"):
             svg = _read(os.path.join(common.STATIC_DIR, f))
             self.assertNotIn("#1f4fd1", svg, "%s: 마크는 잉크 한 색 (§37.6 미니멀)" % f)
-            ink = "#f2f2ef" if f == "favicon.svg" else "#1c1c1a"      # §39.1 파비콘은 검은 바탕 + 밝은 마크
+            ink = "currentColor" if f == "favicon.svg" else "#1c1c1a"      # §45 탭 아이콘은 바탕 없이 한 가지 색(화면 밝기를 따른다)
             self.assertEqual(svg.count('fill="%s"/>' % ink), 2, "%s: 가운데 원 + 위성 (§37.7)" % f)
             self.assertNotIn("<text", svg, "%s: 글자는 윤곽 경로 — 아이폰에 맑은 고딕이 없다 (§37.1)" % f)
         for rel in ("rules.default.json", "names.default.json"):
@@ -524,6 +524,23 @@ class StaticLayoutTest(unittest.TestCase):
             self.assertIn("?v=", src, "§44 manifest 아이콘 %s 에 판 번호" % src)
         gen = io.open(os.path.join(ROOT, "logo", "make_orbit.py"), encoding="utf-8").read()
         self.assertIn('os.path.join(ROOT, "app_icon.ico")', gen, "§44 app_icon.ico 도 Orbit 아이콘으로 만든다")
+
+    def test_pc_icon_one_color_design_45(self):
+        self.assertIsNotNone(re.search(r"^##\s*45\.", self.design, re.M), "DESIGN.md 에 §45 가 없다")
+        fav = _read(os.path.join(common.STATIC_DIR, "favicon.svg"))
+        self.assertNotIn("#000000", fav, "§45 탭 아이콘에 검은 바탕이 없다")
+        self.assertNotIn('fill="#ffffff"', fav, "§45 탭 아이콘에 흰 원판이 없다")
+        self.assertIn("@media (prefers-color-scheme:dark){:root{color:#f2f2ef}}", fav, "§45 어두운 화면에서는 흰 마크")
+        self.assertIn(":root{color:#1c1c1a}", fav, "§45 밝은 화면에서는 검은 마크")
+        login = _read(os.path.join(common.STATIC_DIR, "login.html"))
+        for page in (self.html, login):
+            self.assertIn('<link rel="icon" href="/static/horarium.ico?v=orbit3" sizes="32x32">', page, "§45 .ico 는 32x32 — 크롬이 svg 를 고른다")
+        self.assertNotIn('rel="icon" type="image/png" sizes="192x192"', self.html, "§45 폰용 검은 바탕 png 는 PC 창 아이콘 후보에서 뺀다")
+        gen = io.open(os.path.join(ROOT, "logo", "make_orbit.py"), encoding="utf-8").read()
+        self.assertIn('imgs = [render_icon(n, None, PC_SCALE, ink=PC_INK) for n in ico_sizes]', gen, "§45 .ico 는 바탕 없이 검은 마크")
+        self.assertIn('os.path.join(here, "orbit-mono.ico")', gen)
+        with io.open(os.path.join(ROOT, "app_icon.ico"), "rb") as fh:
+            self.assertEqual(fh.read(4), b"\x00\x00\x01\x00", "app_icon.ico 는 ico 파일")
 
     def test_design_19_documented(self):
         self.assertIsNotNone(
