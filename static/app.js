@@ -480,8 +480,10 @@
   var PHONE_ANCHOR = { today: 'phone-head', todos: 'card-todos', events: 'card-events', notes: 'card-notes', night: 'card-night',
                        drawer: 'card-drawer', notices: 'card-notices', tools: 'card-unknown', more: 'phone-more' };   // 칸의 맨 위가 되는 요소
   var RAIL_ORDER = ['today', 'todos', 'events', 'notes', 'night', 'drawer', 'notices', 'tools', 'more'];             // 한 장 안에서 놓이는 차례
-  var phoneMQ = window.matchMedia ? window.matchMedia('(max-width: 559px)') : null;
-  function isPhone() { return !!(phoneMQ && phoneMQ.matches); }
+  // §49 PC 도 같은 화면 — 폭에 따라 배치만 다르다. 1100px 이상이면 나란히(왼쪽 타임라인 붙박이 · 오른쪽 한 장) — '타임라인 화면' 이 따로 없다
+  var splitMQ = window.matchMedia ? window.matchMedia('(min-width: 1100px)') : null;
+  function isSplit() { return !!(splitMQ && splitMQ.matches); }
+  function onTimelinePage() { return phonePage() === 'timeline' && !isSplit(); }
   function phonePage() {
     var p = (location.hash || '').replace(/^#\/?/, '');
     return PHONE_PAGES.indexOf(p) >= 0 ? p : 'today';
@@ -526,7 +528,7 @@
   }
   // 내려 보는 동안: 위 막대 바로 아래에 걸린 칸이 '지금 칸'
   function phoneSpy() {
-    if (!isPhone() || phonePage() === 'timeline') return;
+    if (onTimelinePage()) return;
     if (state.railLock && Date.now() < state.railLock) return;
     if (state.railPin) {
       if (Math.abs(window.scrollY - state.railPin.y) < 48) { if (state.railCur !== state.railPin.sec) markRail(state.railPin.sec); return; }
@@ -546,18 +548,20 @@
     try { history.replaceState(null, '', '#/' + cur); } catch (e) { /* 주소를 못 바꿔도 표시는 한다 */ }
   }
   function applyPhonePage() {
-    var p = phonePage(), m = $('main'), tl = p === 'timeline';
-    // 주·월 보기는 타임라인 화면 안에서만 — 다른 곳으로 가면 하루로 돌아온다
-    if (isPhone() && state.view !== 'day' && !tl && state.date) setView('day', state.date);
+    var split = isSplit(), p = phonePage(), m = $('main');
+    if (split && p === 'timeline') p = 'today';                 // §49 나란히면 타임라인은 늘 왼쪽에 있다
+    var tl = p === 'timeline';
+    // 주·월 보기는 타임라인 화면 안에서만 — 다른 곳으로 가면 하루로 돌아온다(나란히면 타임라인이 늘 보이니 그대로)
+    if (!split && state.view !== 'day' && !tl && state.date) setView('day', state.date);
     var wasHome = m.classList.contains('pg-home');
     m.classList.add('phone-pages');
+    m.classList.toggle('pg-split', split);
     m.classList.toggle('pg-timeline', tl);
     m.classList.toggle('pg-home', !tl);
     document.body.setAttribute('data-page', tl ? 'timeline' : 'home');
     syncRail();
     markRail(p);
     renderPhoneHead();
-    if (!isPhone()) return;
     if (tl) {
       window.scrollTo(0, 0);
       requestAnimationFrame(function () {
@@ -574,20 +578,26 @@
   function longDate(str) { var d = parseDate(str); return (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + WEEK[d.getDay()] + '요일'; }
   function renderPhoneHead() {
     if (!$('ph-title')) return;
-    var tl = phonePage() === 'timeline', title = tl ? '타임라인' : '오늘', sub = '';
+    var tl = onTimelinePage(), title = tl ? '타임라인' : '오늘', sub = '';
     if (!tl && state.date && !isToday()) {
       var t = todayStr();
       title = state.date === shiftDate(t, -1) ? '어제' : state.date === shiftDate(t, 1) ? '내일' : (parseDate(state.date).getMonth() + 1) + '월 ' + parseDate(state.date).getDate() + '일';
     }
     if (state.date) sub = state.view === 'day' ? longDate(state.date) : ($('date-label').textContent || '');
+    var tlSub = sub;
+    // §49 나란히: 주·월은 왼쪽(타임라인 쪽 머리)에서 오가고, 오른쪽 한 장은 늘 오늘 것이라 머리도 '오늘'
+    var splitOther = isSplit() && state.view !== 'day';
+    if (splitOther) { title = '오늘'; sub = longDate(todayStr()); }
     $('ph-title').textContent = title;
     $('ph-sub').textContent = sub;
     $('ph-sub').parentNode.hidden = !sub;          // 설명 줄이 없으면 그 높이도 없앤다
     var pick = state.view === 'day';
     $('ph-date').hidden = !pick;
+    $('ph-mv').hidden = splitOther;
     if (pick && state.date) $('ph-date').value = state.date;
     $('ph-ctl').hidden = !tl;
-    Array.prototype.forEach.call(document.querySelectorAll('#ph-seg button'), function (b) { b.classList.toggle('on', b.getAttribute('data-view') === state.view); });
+    Array.prototype.forEach.call(document.querySelectorAll('#ph-seg button, #tl-seg button'), function (b) { b.classList.toggle('on', b.getAttribute('data-view') === state.view); });
+    if ($('tl-tabs-d')) $('tl-tabs-d').textContent = tlSub;         // §49 나란히: 왼쪽 위에 지금 보는 날·주·달
   }
   // 히어로: 큰 숫자 하나(활동 시간). 나머지 숫자는 '자세히' 를 눌러야 나온다(§23 요약 띠가 펼쳐진다)
   function renderPhoneHero() {
@@ -807,7 +817,6 @@
       var pv = h('div', { class: 'tile-pv' }, [h('div', { class: 'pv-big' }), h('div', { class: 'pv-cap' })]);
       if (sec && sec.nextSibling) c.insertBefore(pv, sec.nextSibling); else c.appendChild(pv);
       c.addEventListener('click', function (e) {
-        if (!isPhone()) return;
         if (!c.classList.contains('open')) { openTile(id, true); return; }
         // 펼친 뒤에는 제목 줄(그 안의 단추·입력은 빼고)을 눌러야 접힌다
         var inSec = e.target.closest ? e.target.closest('.sec') : null;
@@ -841,18 +850,22 @@
     }, { passive: true });
     $('ph-prev').addEventListener('click', function () { navigatePeriod(-1); });
     $('ph-next').addEventListener('click', function () { navigatePeriod(1); });
+    $('tl-prev').addEventListener('click', function () { navigatePeriod(-1); });
+    $('tl-next').addEventListener('click', function () { navigatePeriod(1); });
     $('ph-date').addEventListener('change', function () { if (this.value && state.view === 'day') changeDate(this.value); });
-    $('ph-seg').addEventListener('click', function (e) {
-      var b = e.target.closest ? e.target.closest('button[data-view]') : null;
-      if (b) setView(b.getAttribute('data-view'), state.date || todayStr());
+    ['ph-seg', 'tl-seg'].forEach(function (id) {
+      $(id).addEventListener('click', function (e) {
+        var b = e.target.closest ? e.target.closest('button[data-view]') : null;
+        if (b) setView(b.getAttribute('data-view'), state.date || todayStr());
+      });
     });
     $('hero-more').addEventListener('click', function () {
       var open = $('main').classList.toggle('hero-open');
       this.textContent = open ? '접기' : '자세히 ›';
     });
     var tap = $('ps-tap');
-    tap.addEventListener('click', function () { goPhonePage('timeline'); });
-    tap.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goPhonePage('timeline'); } });
+    tap.addEventListener('click', function () { if (!isSplit()) goPhonePage('timeline'); });       // 나란히면 타임라인이 이미 옆에
+    tap.addEventListener('keydown', function (e) { if (!isSplit() && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); goPhonePage('timeline'); } });
     $('phone-more').addEventListener('click', function (e) {
       var t = e.target.closest ? e.target.closest('[data-act]') : null;
       if (!t) return;
@@ -863,9 +876,11 @@
     });
     $('ph-theme').firstChild.nodeValue = THEME === 'dark' ? '밝은 화면으로' : '어두운 화면으로';
     window.addEventListener('resize', function () { syncTimelineTop(); if (state.railCur) markRail(state.railCur); });
-    if (phoneMQ && phoneMQ.addEventListener) phoneMQ.addEventListener('change', function () {
+    if (splitMQ && splitMQ.addEventListener) splitMQ.addEventListener('change', function () {
       applyPhonePage();
       if (state.view === 'day' && state.day) renderTimeline(false);
+      else if (state.view === 'week' && state.range) renderWeek();
+      else if (state.view === 'month' && state.range) renderMonth();
     });
     // 칸이 생기거나 사라지면(공지 · 오늘 밤 · 다른 기기) 세로 바도 맞춘다
     if (window.MutationObserver) new MutationObserver(function () { syncRail(); }).observe($('sidebar'), { attributes: true, attributeFilter: ['hidden'], subtree: true });
@@ -875,7 +890,7 @@
     // 처음 열 때는 내용이 아직 덜 그려져 자리가 어긋난다 — 그려진 뒤 한 번 더 맞춘다
     setTimeout(function () {
       syncRail();
-      if (isPhone() && phonePage() !== 'timeline' && phonePage() !== 'today') phoneScrollTo(phonePage(), false);
+      if (!onTimelinePage() && phonePage() !== 'timeline' && phonePage() !== 'today') phoneScrollTo(phonePage(), false);
     }, 700);
   }
 
@@ -1323,7 +1338,7 @@
     var emptyEl = $('timeline-empty');
     clear(svg);
     if (!day || !day.window) return;
-    if (isPhone() && phonePage() === 'timeline') syncTimelineTop();   // §39.2 폰 타임라인 화면의 높이 기준 — 폭·맞춤 배율을 재기 전에
+    if (onTimelinePage()) syncTimelineTop();   // §39.2 폰 타임라인 화면의 높이 기준 — 폭·맞춤 배율을 재기 전에
 
     var h0 = state.config.day_start_hour || 4;
     tl.windowStart = day.window.start;

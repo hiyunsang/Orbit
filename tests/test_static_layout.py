@@ -53,20 +53,16 @@ class StaticLayoutTest(unittest.TestCase):
         cls.notices_js = _read(os.path.join(common.STATIC_DIR, "notices.js"))
         cls.server = _read(os.path.join(ROOT, "server.py"))
 
-    # ---- §18.3 하루 보기 2열 예외 -------------------------------------
+    # ---- §18.3 하루 보기 2열 예외 → §49 에서 폰 화면 한 줄(가운데)로 바뀜 ----
     def test_day_two_column_exception_exists(self):
         m = re.search(
             r"@media\s*\(\s*min-width:\s*560px\s*\)\s*and\s*\(\s*max-width:\s*1099px\s*\)",
             self.css)
-        self.assertIsNotNone(
-            m, "하루 보기 2열 예외 미디어쿼리가 사라졌다 — DESIGN §18.2/18.3")
+        self.assertIsNotNone(m, "560~1099px 블록이 없다 — DESIGN §49")
         block = _block_after(self.css, m.end())
-        self.assertIn("#main.view-day", block,
-                      "예외 블록에 #main.view-day 선택자가 없다 — DESIGN §18.3")
-        self.assertIn("grid-template-columns", block,
-                      "예외 블록이 2열을 되돌리지 않는다 — DESIGN §18.3")
-        self.assertIn("300px", block,
-                      "사이드 패널 300px 이 아니다 — DESIGN §18.2 (폭을 유동으로 바꾸려면 §18.5 를 먼저 읽을 것)")
+        self.assertIn("#main.phone-pages.pg-home { grid-template-columns: minmax(0px, 600px); justify-content: center; }", block,
+                      "§49 중간 폭은 폰 화면 한 줄을 가운데(최대 600)")
+        self.assertNotIn("#main.view-day { grid-template-columns: 260px", self.css, "§49 옛 하루 2열(260px) 은 없앴다")
 
     # ---- §18.3 폴백(주·월 1열) 보존 -----------------------------------
     def test_narrow_fallback_preserved(self):
@@ -210,10 +206,9 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertNotIn('id="btn-vocab" type="button" title="Athenaeum 단어 맞추기를 작은 창으로 엽니다 (§20.8)">단어<', self.html,
                          "헤더의 '단어' 는 없애고 카드 한 칸으로 (§23.2)")
         self.assertIn('id="card-vocab"', self.html)
-        blocks = re.findall(r"@media\s*\(\s*min-width:\s*1100px\s*\)\s*\{(.*?)\n\}", self.css, re.S)
-        day = [b for b in blocks if "grid-template-columns: 380px" in b]   # §23.3 이 같은 조건의 주·월 블록을 하나 더 둔다
-        self.assertTrue(day, "§23.2 넓은 창 하루 블록(타임라인 380px)이 없다")
-        self.assertIn('grid-template-areas', day[0])
+        # §49: 넓은 창의 하루 블록(타임라인 380px + 판 격자)은 없애고 나란히(왼쪽 타임라인 · 오른쪽 폰 한 장)로 바꿨다
+        self.assertNotIn("grid-template-columns: 380px", self.css)
+        self.assertIn("#main.phone-pages.pg-split { width: var(--home-w);", self.css)
 
     def test_tonight_design_22(self):
         self.assertIsNotNone(re.search(r"^##\s*22\.", self.design, re.M), "DESIGN.md 에 §22 가 없다")
@@ -306,8 +301,7 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertIsNotNone(re.search(r"^##\s*32\.", self.design, re.M), "DESIGN.md 에 §32 가 없다")
         self.assertIn('id="card-anki" hidden', self.html, "§31.6 Anki 카드는 숨긴 채 시작한다")
         self.assertIn("function ankiOn()", self.js)
-        self.assertIn('"mine mine"', self.css, "§34 넓은 창에서 내 것은 한 영역(안에서 두 칸)")
-        self.assertIn('"todos notes"', self.css, "§34 내 것 안: 할 일 왼쪽, 메모 오른쪽")
+        self.assertNotIn('"mine mine"', self.css, "§49 §34 의 넓은 창 두 칸 격자는 없앴다")
         self.assertNotIn("노랭이 · 초록이 · 작은 창으로 열림", self.html, "§32 단어 카드는 버튼 한 줄")
         self.assertIn("#card-todos .todo-text, #card-todos .evt-t { font-size: 15px; }", self.css)
         self.assertIn('placeholder="할 일 · 마감 · 일정 (예: 24일 숙제 / THK 문의)"', self.html)
@@ -326,7 +320,7 @@ class StaticLayoutTest(unittest.TestCase):
                       "border-top: 1px solid var(--line-2); border-bottom: 1px solid var(--line-2); border-left: 3px solid var(--accent); }",
                       self.css, "§33.4 할 일은 판 가장자리까지 닿는 흰 블록")
         self.assertIn("#card-vocab { border-bottom: 0; }", self.css, "§33.4 블록 윗선과 겹선 방지")
-        self.assertIn("#main.view-day > #sidebar #card-todos { margin: var(--s3) 0 0 calc(-1 * var(--s6)); padding-left: var(--s6); }", self.css, "§33.4·§34 넓은 사이드바에선 왼쪽으로만 가장자리까지")
+        self.assertNotIn("#main.view-day > #sidebar #card-todos { margin: var(--s3)", self.css, "§49 옛 넓은 사이드바는 없앴다")
         self.assertNotIn("#card-todos { box-shadow", self.css, "§12.1 그림자 금지")
 
     def test_two_columns_design_34(self):
@@ -337,11 +331,9 @@ class StaticLayoutTest(unittest.TestCase):
         i_close = self.html.index('</div><!-- /mine-body §34 -->')
         i_coming = self.html.index('id="zone-coming"')
         self.assertTrue(i_open < i_vocab < i_night < i_close < i_coming, "§34 mine-body 는 단어~밤 여섯 카드만 감싼다")
-        self.assertIn('#main.view-day > #sidebar > #mine-body { grid-area: mine; display: grid;', self.css)
-        self.assertIn('"todos vocab" "todos anki" "todos notes" "todos budget" "todos night" "todos drawer" "todos ."', self.css, "§34·§35 안쪽 격자 영역")
-        self.assertIn('grid-template-rows: repeat(6, auto) minmax(0px, 1fr);', self.css, "§34 마지막 1fr 줄이 블록의 남는 높이를 받는다")
-        self.assertIn('grid-template-columns: minmax(0px, 3fr) minmax(280px, 2fr)', self.css, "§34 창 폭을 쓰는 두 칸")
-        self.assertNotIn('repeat(2, minmax(0px, 360px))', self.css)
+        # §49: mine-body 는 폰 화면처럼 display: contents — 넓은 창의 안쪽 격자(§34)는 없앴다
+        self.assertIn("#main.phone-pages > #sidebar > #mine-body { display: contents !important; }", self.css)
+        self.assertNotIn('#main.view-day > #sidebar > #mine-body { grid-area: mine;', self.css)
 
     def test_drawer_design_35(self):
         self.assertIsNotNone(re.search(r"^##\s*35\.", self.design, re.M), "DESIGN.md 에 §35(서랍) 가 없다")
@@ -351,7 +343,7 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertTrue(i_night < i_drawer < i_close, "§35 서랍은 내 것 안, 밤 일정 다음")
         for i in ("btn-drawer-add", "drawer-add", "drawer-label", "drawer-value", "btn-drawer-save", "btn-drawer-file", "drawer-file", "btn-drawer-cancel", "drawer-list"):
             self.assertIn('id="%s"' % i, self.html, "§35 id=%s 가 없다 — app.js 가 getElementById 로 잡는다" % i)
-        self.assertIn("#main.view-day #card-drawer { grid-area: drawer; }", self.css)
+        self.assertNotIn("#main.view-day #card-drawer { grid-area: drawer; }", self.css, "§49 넓은 창 격자 영역은 없앴다")
         self.assertIn("#main.view-week #card-drawer, #main.view-month #card-drawer", self.css, "§35 주·월에서는 내 것과 같이 숨는다")
         self.assertIn(".drawer-row.copied .drawer-v", self.css)
         for fn in ("function loadDrawer()", "function copyText(", "function copyImage(", "function renderDrawer()", "function saveDrawer()"):
@@ -377,7 +369,7 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertIn("p === '/api/devices'", self.js, "§36 목업")
         self.assertIn("#main.phone-pages > #sidebar { order: 2;", self.css, "§36.5 → §39.2: 폰에서는 화면 머리·히어로 다음에 판")
         self.assertIn("@media (hover: none) and (pointer: coarse)", self.css, "§36.5 터치 기기 16px")
-        self.assertIn('"unknown pause" "devices devices"', self.css)
+        self.assertNotIn('"unknown pause" "devices devices"', self.css, "§49 넓은 창 격자 영역은 없앴다")
         self.assertIn(".is-remote #link-restart, .is-remote .drawer-reveal { display: none; }", self.css)
 
     def test_orbit_design_37(self):
@@ -441,8 +433,9 @@ class StaticLayoutTest(unittest.TestCase):
         m = re.search(r"/\* ── §39\.2 폰.*", self.css, re.S)
         self.assertIsNotNone(m)
         block = m.group(0)
-        self.assertIn("@media (max-width: 559px) {", block, "§39.2 규칙은 559px 이하에만 — 1/3 창(624px)의 배치는 그대로")
-        self.assertIn(".phone-head, .phone-hero, .phone-sec, .phone-rail, .ph-list, .tile-pv { display: none; }", block, "넓은 화면에서는 폰 전용 요소가 안 보인다")
+        self.assertIn("@media screen {\n  :root { --rail-w: 44px; --gut: 16px; }", block, "§49 폰 규칙은 모든 폭에(PC 도 같은 화면)")
+        self.assertNotIn("@media (max-width: 559px) {", block)
+        self.assertIn(".phone-head, .phone-hero, .phone-sec, .phone-rail, .ph-list, .tile-pv { display: none; }", block, "기본은 숨기고 폰 규칙에서 보인다")
         self.assertIn("#main.phone-pages.pg-home #card-tonight:not([hidden])", block, "JS 가 숨긴 카드는 계속 숨는다")
         self.assertNotIn("#main.phone-pages.pg-home #card-due", block, "§39.2 '곧' 칸은 폰에서 숨긴다(목록 맨 위와 겹침)")
 
@@ -541,6 +534,19 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertIn('os.path.join(here, "orbit-mono.ico")', gen)
         with io.open(os.path.join(ROOT, "app_icon.ico"), "rb") as fh:
             self.assertEqual(fh.read(4), b"\x00\x00\x01\x00", "app_icon.ico 는 ico 파일")
+
+    def test_unified_design_49(self):
+        self.assertIsNotNone(re.search(r"^##\s*49\.", self.design, re.M), "DESIGN.md 에 §49 가 없다")
+        self.assertNotIn("isPhone()", self.js, "§49 폰·PC 구분 없이 같은 화면 — 폭은 isSplit() 하나")
+        self.assertIn("var splitMQ = window.matchMedia ? window.matchMedia('(min-width: 1100px)') : null;", self.js)
+        self.assertIn("m.classList.toggle('pg-split', split);", self.js)
+        self.assertIn("if (split && p === 'timeline') p = 'today';", self.js, "나란히면 타임라인 화면이 따로 없다")
+        self.assertIn('<nav id="tl-tabs" class="tl-tabs"', self.html, "나란히일 때 왼쪽 위 하루·주·월")
+        self.assertIn('id="tl-prev"', self.html)
+        self.assertIn("#main.pg-split > #timeline-wrap, #main.pg-split > #week-wrap, #main.pg-split > #month-wrap { position: fixed;", self.css,
+                      "왼쪽 타임라인은 붙박이 — 오른쪽 한 장만 스크롤")
+        self.assertIn('#main.pg-split ~ #phone-rail a[data-sec="timeline"] { display: none; }', self.css)
+        self.assertIn("#main { display: grid; grid-template-columns: minmax(0px, 1fr); }", self.css, "옛 오른쪽 300px 판은 없다")
 
     def test_design_19_documented(self):
         self.assertIsNotNone(

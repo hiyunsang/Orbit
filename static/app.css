@@ -64,7 +64,7 @@ button { font: inherit; }
 .status-banner.st-dead .st-dot { background: var(--amber); }
 .status-banner.st-none .st-dot { background: var(--line-2); }
 .status-banner.st-none .st-text { color: var(--text-3); }
-#main { display: grid; grid-template-columns: minmax(0px, 1fr) 300px; }
+#main { display: grid; grid-template-columns: minmax(0px, 1fr); }      /* §49 옛 넓은 창의 오른쪽 300px 판은 없앴다 */
 #timeline-wrap, #week-wrap, #month-wrap { height: calc(100vh - var(--header-h)); background: var(--surface); }
 #timeline-wrap { position: relative; display: flex; flex-direction: column; overflow: hidden; }
 #timeline-scroll { flex: 1 1 0%; min-height: 0px; position: relative; overflow: hidden auto; }
@@ -82,11 +82,6 @@ button { font: inherit; }
   #sidebar { height: auto; overflow: visible; border-left: 0px; border-top: 1px solid var(--line-2); min-width: 0px; }
   #date-input:disabled { display: none; }
   #date-input:not(:disabled) + .date-label { display: none; }
-}
-@media (min-width: 560px) and (max-width: 1099px) {
-  #main.view-day { grid-template-columns: 260px minmax(300px, 1fr); }
-  #main.view-day #timeline-wrap { height: calc(100vh - var(--header-h)); }
-  #main.view-day > #sidebar { height: calc(100vh - var(--header-h)); overflow-y: auto; border-left: 1px solid var(--line-2); border-top: 0px; }
 }
 @media (max-width: 719px) {
   #header { gap: var(--s2); padding: 0 var(--s2); }
@@ -330,15 +325,6 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
 .day-summary .sum-value { font-size: 14px; margin: 0px; line-height: 1.2; }
 .day-summary .sum-sub { display: inline; margin-left: var(--s1); }
 .day-summary > .sec { display: none; }
-@media (min-width: 560px) {
-  #main.view-day { height: calc(100vh - var(--header-h)); grid-template-rows: auto minmax(0px, 1fr); }
-  #main.view-day #timeline-wrap, #main.view-day > #sidebar { height: auto; min-height: 0px; }
-}
-@media (min-width: 1100px) {
-  #main.view-week, #main.view-month { height: calc(100vh - var(--header-h)); grid-template-rows: auto minmax(0px, 1fr); }
-  #main.view-week #week-wrap, #main.view-month #month-wrap, #main.view-week > #sidebar, #main.view-month > #sidebar { height: auto; min-height: 0px; }
-  #main.view-month #month-wrap { overflow-y: auto; }
-}
 #main.view-day #card-period { display: none; }
 #main.view-week #card-tonight, #main.view-month #card-tonight, #main.view-week #card-todos, #main.view-month #card-todos, #main.view-week #card-notes, #main.view-month #card-notes, #main.view-week #card-budget, #main.view-month #card-budget, #main.view-week #card-night, #main.view-month #card-night, #main.view-week #card-vocab, #main.view-month #card-vocab, #main.view-week #card-anki, #main.view-month #card-anki, #main.view-week #card-drawer, #main.view-month #card-drawer { display: none; }
 .period-row { display: block; cursor: pointer; }
@@ -351,31 +337,6 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
 .period-num { display: flex; align-items: baseline; gap: var(--s2); }
 .period-num .k { flex: 1 1 0%; color: var(--text-2); font-size: 12px; }
 .period-num .v { font-weight: 500; font-variant-numeric: tabular-nums; }
-@media (min-width: 1100px) {
-  #main.view-day { grid-template-columns: 380px minmax(0px, 1fr); }
-  #main.view-day > #sidebar { display: grid; grid-template-columns: minmax(0px, 3fr) minmax(280px, 2fr); column-gap: var(--s8); place-content: start; padding: 0 var(--s6) var(--s8); grid-template-areas: "tonight tonight" "due due" "zmine zmine" "mine mine" "zcoming zcoming" "events events" "zschool zschool" "notices notices" "ztools ztools" "unknown pause" "reading reading" "foot foot"; }
-  /* §34 내 것 안쪽 두 칸(바깥과 같은 비율·간격): 왼쪽 할 일 블록이 여섯 줄을 가로지르고, 오른쪽은 단어·Anki·메모·예산·밤. 마지막 1fr 줄이 블록의 남는 높이를 받아 오른쪽 카드가 위로 붙는다 */
-  #main.view-day > #sidebar > #mine-body { grid-area: mine; display: grid; grid-template-columns: minmax(0px, 3fr) minmax(280px, 2fr); grid-template-rows: repeat(6, auto) minmax(0px, 1fr); column-gap: var(--s8); align-items: start; grid-template-areas: "todos vocab" "todos anki" "todos notes" "todos budget" "todos night" "todos drawer" "todos ."; }
-  #main.view-day #card-tonight { grid-area: tonight; }
-  #main.view-day #card-todos { grid-area: todos; }
-  #main.view-day #card-due { grid-area: due; }
-  #main.view-day #card-events { grid-area: events; }
-  #main.view-day #zone-mine { grid-area: zmine; }
-  #main.view-day #zone-coming { grid-area: zcoming; }
-  #main.view-day #zone-school { grid-area: zschool; }
-  #main.view-day #zone-tools { grid-area: ztools; }
-  #main.view-day #card-night { grid-area: night; }
-  #main.view-day #card-drawer { grid-area: drawer; }
-  #main.view-day #card-notes { grid-area: notes; }
-  #main.view-day #card-budget { grid-area: budget; }
-  #main.view-day #card-vocab { grid-area: vocab; }
-  #main.view-day #card-anki { grid-area: anki; }
-  #main.view-day #card-unknown { grid-area: unknown; }
-  #main.view-day #card-pause { grid-area: pause; }
-  #main.view-day #card-notices { grid-area: notices; }
-  #main.view-day #card-reading { grid-area: reading; }
-  #main.view-day > #sidebar > .foot-links { grid-area: foot; }
-}
 /* ── 학사 일정 (§24) — 공지 카드와 같은 어휘: 두 줄 행, D-day 는 글자색만 ── */
 #card-schedule .sec .sched-src { margin-left: auto; padding: 0 4px; font-size: 12px; }
 .sched-row { display: block; }
@@ -405,9 +366,6 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
 #card-todos { margin: 0 calc(-1 * var(--s3)); padding: 0 var(--s3) var(--s3); background: var(--surface); border-top: 1px solid var(--line-2); border-bottom: 1px solid var(--line-2); border-left: 3px solid var(--accent); }
 #card-vocab { border-bottom: 0; }
 #card-anki { border-top: 1px solid var(--line); }
-@media (min-width: 1100px) {
-  #main.view-day > #sidebar #card-todos { margin: var(--s3) 0 0 calc(-1 * var(--s6)); padding-left: var(--s6); }  /* §34: 왼쪽으로만 가장자리까지, 윗선은 오른쪽 단어 버튼과 같은 높이 */
-}
 /* §25 월 칸의 밤 일정 한 줄 — 글자색만(했음 초록, 안 했음 회색) */
 .mnight { font-size: 11px; color: var(--accent); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mnight.ok { color: var(--green); }
@@ -538,10 +496,6 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
 .dev-url:hover { text-decoration: underline; text-underline-offset: 3px; }
 .dev-sess { display: block; color: var(--text-2); }
 .is-remote #link-restart, .is-remote .drawer-reveal { display: none; }
-@media (min-width: 1100px) {
-  #main.view-day > #sidebar { grid-template-areas: "tonight tonight" "due due" "zmine zmine" "mine mine" "zcoming zcoming" "events events" "zschool zschool" "notices notices" "ztools ztools" "unknown pause" "devices devices" "reading reading" "foot foot"; }
-  #main.view-day #card-devices { grid-area: devices; }
-}
 /* §36.5 터치 기기: 16px 미만 입력은 iOS Safari 가 누를 때마다 확대한다 → 16px. 행의 단추는 손가락 크기로 */
 @media (hover: none) and (pointer: coarse) {
   input[type="text"], input[type="password"], input[type="date"], input[type="search"], textarea, select { font-size: 16px !important; }
@@ -562,8 +516,8 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
 .brand-mark { color: var(--text); }
 .span.override, .night-band rect { stroke: var(--accent); }         /* JS 가 박아 넣는 #1f4fd1 대신 테마의 강조색 */
 
-/* ── §39.2 폰(≤559px) — §42: Linear 쪽 — 거의 검정 · 가는 테두리 · 은은한 결. 맨 위에 하루 궤도(링), 아래는 두 칸 타일(누르면 그 자리에서 펼침), 오른쪽 세로 바(§41)는 그대로. 타임라인만 따로 화면.
-   1/3 창(624px)·넓은 창의 배치는 그대로. 굵기는 400·500 둘, 색은 데이터(타임라인)와 상태(지남·임박·기록 중)에만 ── */
+/* ── §39.2 폰 — §49 부터는 모든 폭(PC 도 같은 화면, 폭에 따른 배치는 맨 아래 §49). §42: Linear 쪽 — 거의 검정 · 가는 테두리 · 은은한 결. 맨 위에 하루 궤도(링), 아래는 두 칸 타일(누르면 그 자리에서 펼침), 오른쪽 세로 바(§41)는 그대로. 타임라인만 따로 화면.
+   굵기는 400·500 둘, 색은 데이터(타임라인)와 상태(지남·임박·기록 중)에만 ── */
 :root { --pg: #ffffff; --fill: rgba(0, 0, 0, 0.07); --tile: #f7f7f5; --mono: "Geist Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo, "Cascadia Mono", Consolas, "Pretendard Variable", "Apple SD Gothic Neo", "Malgun Gothic", monospace; }
 :root[data-theme="dark"] { --pg: #08090a; --fill: rgba(255, 255, 255, 0.09); --tile: linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.024)); }
 .phone-head, .phone-hero, .phone-sec, .phone-rail, .ph-list, .tile-pv { display: none; }
@@ -591,7 +545,7 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
 @keyframes sp-moon { from { transform: rotate(-320deg); opacity: 0; } 25% { opacity: 1; } to { transform: rotate(0deg); opacity: 1; } }
 @keyframes splash-out { to { opacity: 0; visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) { #splash { display: none; } }
-@media (max-width: 559px) {
+@media screen {
   :root { --rail-w: 44px; --gut: 16px; }
   /* 글꼴: 아이폰에서는 아이폰 자체 글꼴(SF · Apple SD 산돌고딕 Neo), 그 밖에서는 Pretendard. Geist 는 파일을 넣으면 맨 앞에서 쓰인다 */
   body { background: var(--pg); font-family: "Geist", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard Variable", Pretendard, "Segoe UI", "Malgun Gothic", system-ui, sans-serif; font-size: 15px; letter-spacing: -0.01em; }
@@ -639,7 +593,7 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
   .ph-mv { margin-left: auto; margin-right: -10px; margin-bottom: -6px; display: flex; }
   .rb { position: relative; width: 40px; height: 40px; border: 0; border-radius: 8px; background: none; color: var(--text-2); font-size: 0; padding: 0; cursor: pointer; }
   .rb::before { content: ""; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -6px; border-right: 1.5px solid currentColor; border-top: 1.5px solid currentColor; transform: rotate(45deg); }
-  #ph-prev::before { margin-left: -2px; transform: rotate(-135deg); }
+  #ph-prev::before, #tl-prev::before { margin-left: -2px; transform: rotate(-135deg); }
   .rb:active { background: var(--fill); }
   /* 하루·주·월: 글자 탭 — 고른 것 아래에만 줄. 타임라인의 윗선 위에 얹힌다 */
   body[data-page="timeline"] .phone-head { padding-bottom: 0; }
@@ -747,4 +701,28 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
   #main.phone-pages #sidebar .tl-day.today { color: var(--text); }
   #main.phone-pages #sidebar :is(.evt-d, .tl-d, .tl-src, .nt-meta, .nt-date) { font-size: 13px; }
   #main.phone-pages #card-notes textarea { min-height: 120px; font-size: 16px; line-height: 1.6; }
+}
+
+/* ── §49 PC 도 폰과 같은 화면(2026-11-11): 위의 폰 규칙이 모든 폭에 걸리고, 여기서는 폭에 따라 배치만 바꾼다.
+   ~559 폰 그대로 · 560~1099 한 줄을 가운데(최대 600) · 1100~ 나란히: 왼쪽 타임라인(붙박이) | 오른쪽 한 장(오늘) | 세로 바 ── */
+.tl-tabs { display: none; }
+@media (min-width: 560px) {
+  :root { --gut: 20px; }
+}
+@media (min-width: 560px) and (max-width: 1099px) {
+  #main.phone-pages.pg-home { grid-template-columns: minmax(0px, 600px); justify-content: center; }
+}
+@media (min-width: 1100px) {
+  :root { --home-w: clamp(440px, 34vw, 560px); --tabs-h: 46px; }
+  #main.phone-pages.pg-split { width: var(--home-w); margin: 0 var(--rail-w) 0 auto; padding-right: 0; grid-template-columns: minmax(0px, 1fr); }
+  #main.pg-split > #tl-tabs { display: flex; align-items: flex-end; position: fixed; z-index: 6; top: 52px; left: 0; right: calc(var(--home-w) + var(--rail-w)); height: var(--tabs-h); padding: 0 20px; background: var(--pg); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .tl-tabs-d { margin-left: auto; padding-bottom: 11px; font-size: 13px; color: var(--text-3); white-space: nowrap; }
+  .tl-mv { display: flex; margin: 0 -10px 3px 6px; }
+  #main.phone-pages.pg-split > #timeline-wrap:not([hidden]), #main.phone-pages.pg-split > #week-wrap:not([hidden]) { display: flex !important; }
+  #main.phone-pages.pg-split > #month-wrap:not([hidden]) { display: block !important; }
+  #main.pg-split > #timeline-wrap, #main.pg-split > #week-wrap, #main.pg-split > #month-wrap { position: fixed; z-index: 5; top: calc(52px + var(--tabs-h)); left: 0; right: calc(var(--home-w) + var(--rail-w)); bottom: 0; height: auto; background: var(--pg); border-right: 1px solid var(--line); }
+  #main.pg-split > #month-wrap { overflow-y: auto; }
+  #main.phone-pages.pg-split:not(.view-day) #card-period:not([hidden]) { display: block !important; }
+  #main.pg-split ~ #phone-rail a[data-sec="timeline"] { display: none; }
+  #main.pg-split .orbit { cursor: default; }
 }

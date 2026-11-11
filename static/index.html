@@ -50,7 +50,7 @@
 </header>
 
 <main id="main">
-  <!-- 폰 화면 머리 (§39.2): 큰 제목 + 날짜 이동. 559px 이하에서만 보인다 -->
+  <!-- 화면 머리 (§39.2 · §49 모든 폭): 큰 제목 + 날짜 이동 -->
   <section id="phone-head" class="phone-head">
     <div class="ph-row1">
       <div><h2 id="ph-title">오늘</h2><label class="ph-subw"><span id="ph-sub"></span><input type="date" id="ph-date" class="ph-date" aria-label="날짜 고르기"></label></div>
@@ -92,6 +92,8 @@
     </div>
     <div class="hero-foot"><span id="hero-foot"></span><button class="hero-more" id="hero-more" type="button">자세히 ›</button></div>
   </section>
+  <!-- §49 넓은 창(1100px~)에서 왼쪽 타임라인 위: 하루 · 주 · 월 -->
+  <nav id="tl-tabs" class="tl-tabs" aria-label="보기"><div class="pseg" id="tl-seg"><button type="button" data-view="day">하루</button><button type="button" data-view="week">주</button><button type="button" data-view="month">월</button></div><span class="tl-tabs-d" id="tl-tabs-d"></span><span class="tl-mv"><button class="rb" id="tl-prev" type="button" aria-label="이전">‹</button><button class="rb" id="tl-next" type="button" aria-label="다음">›</button></span></nav>
   <section id="timeline-wrap" aria-label="타임라인">
     <div class="zoom-bar" role="group" aria-label="시간축 배율">
       <button class="act zoom-out" title="시간축 축소 (Ctrl+휠 아래)">−</button>
