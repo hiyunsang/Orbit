@@ -474,6 +474,101 @@ class BuildDayTest(unittest.TestCase):
         ])
         self.assertAlmostEqual(day["summary"]["remote_sec"], 1800)
 
+    def test_remote_tail_is_not_active_47(self):
+        # §47 17시에 퇴근(마지막 입력 17:00) → 21시 집에서 원격 → 마지막 원격 입력 23:00, 23:05 원격 끊음.
+        # 끊은 뒤 Code 창이 앞에 남아 있어도 집중 유예(15분)로 세지 않는다 → 퇴근은 17:15 그대로.
+        ev = (Ev().start(T(9)).app(T(9), CODE, "a.py")
+              .add("idle_on", T(17))
+              .add("remote_on", T(21)).add("idle_off", T(21, 1))
+              .add("idle_on", T(23)).add("remote_off", T(23, 5))
+              .stop(T(27)))
+        day = run(ev.events, [session(T(9), T(27), reason="stop")])
+        sm = day["summary"]
+        self.assertAlmostEqual(sm["first_active"], T(9))
+        self.assertAlmostEqual(sm["last_active"], T(17, 15), msg="원격 꼬리는 퇴근을 늦추지 않는다")
+        self.assertEqual(brief(day)[-2:], [("remote", T(21), T(23, 5)), ("absent", T(23, 5), T(27))])
+        self.assertAlmostEqual(sm["active_sec"], 8 * 3600 + 15 * 60)
+
+    def test_remote_only_day_has_no_attendance_47(self):
+        # §47 하루 종일 집에서 원격만 — 끊을 때마다 남던 15분 꼬리 때문에 출근이 찍히던 것
+        ev = (Ev().start(T(5)).add("idle_on", T(5))
+              .add("remote_on", T(14)).add("idle_off", T(14, 0, 2)).app(T(14, 0, 3), CODE, "a.py")
+              .add("idle_on", T(14, 58)).add("remote_off", T(15))
+              .add("remote_on", T(20)).add("idle_off", T(20, 0, 2)).add("idle_on", T(20, 50)).add("remote_off", T(21))
+              .stop(T(27)))
+        day = run(ev.events, [session(T(5), T(27), reason="stop")])
+        self.assertIsNone(day["summary"]["first_active"])
+        self.assertIsNone(day["summary"]["last_active"])
+        self.assertEqual(day["summary"]["active_sec"], 0)
+        self.assertEqual(set(c for c, _, _ in brief(day)), {"absent", "remote"})
+
+    def test_local_input_after_remote_counts_47(self):
+        # §47 원격을 끊고 연구실에 와서 입력하면(idle_off) 그때부터는 다시 활동
+        ev = (Ev().start(T(8)).app(T(8), CODE, "a.py")
+              .add("remote_on", T(8, 10)).add("idle_on", T(8, 50)).add("remote_off", T(9))
+              .add("idle_off", T(9, 30))
+              .stop(T(12)))
+        day = run(ev.events, [session(T(8), T(12), reason="stop")])
+        self.assertEqual(brief(day)[-3:], [("remote", T(8, 10), T(9)), ("away", T(9), T(9, 30)), ("focus", T(9, 30), T(12))])
+        self.assertAlmostEqual(day["summary"]["last_active"], T(12))
+
+    def test_remote_without_idle_keeps_focus_47(self):
+        # §47 원격이 끝난 뒤 idle 이 안 잡혔으면(10분 안에 이 자리에서 입력) 그대로 활동 — 꼬리는 idle 일 때만
+        ev = (Ev().start(T(9)).app(T(9), CODE, "a.py")
+              .add("remote_on", T(10)).add("remote_off", T(10, 30))
+              .stop(T(11)))
+        day = run(ev.events, [session(T(9), T(11), reason="stop")])
+        self.assertEqual(brief(day)[-1], ("focus", T(10, 30), T(11)))
+
+    def test_remote_reconnect_gap_is_remote_47(self):
+        # §47 Jump 재접속 틈(19초 메일 창, 3분 NX)은 원격 — 퇴근을 23:28·00:28 로 끌어올리던 것
+        ev = (Ev().start(T(9)).app(T(9), CODE, "a.py").add("idle_on", T(17))
+              .add("remote_on", T(21)).add("idle_off", T(21, 1))
+              .add("remote_off", T(23, 28)).app(T(23, 28), CHROME, "네이버 메일")
+              .add("remote_on", T(23, 28, 19))
+              .add("remote_off", T(24, 25)).app(T(24, 25), CODE, "b.py")
+              .add("remote_on", T(24, 28))
+              .add("idle_on", T(26)).add("remote_off", T(26, 1))
+              .stop(T(27)))
+        day = run(ev.events, [session(T(9), T(27), reason="stop")])
+        self.assertAlmostEqual(day["summary"]["last_active"], T(17, 15))
+        self.assertEqual(brief(day)[-2:], [("remote", T(21), T(26, 1)), ("absent", T(26, 1), T(27))])
+
+    def test_remote_gap_longer_or_off_not_bridged_47(self):
+        # 10분 넘는 틈, 사이에 수집기가 꺼진 틈은 잇지 않는다
+        ev = (Ev().start(T(9)).app(T(9), CODE, "a.py")
+              .add("remote_on", T(10)).add("remote_off", T(10, 30))
+              .add("remote_on", T(10, 45)).add("remote_off", T(11))
+              .stop(T(11, 2)))
+        ev2 = Ev().start(T(11, 5)).add("remote_on", T(11, 5)).add("remote_off", T(11, 30)).stop(T(12))
+        sessions = [session(T(9), T(11, 2), reason="stop"), session(T(11, 5), T(12), reason="stop", sid=2)]
+        day = run(ev.events + [dict(e, id=e["id"] + 100) for e in ev2.events], sessions)
+        cats = [(c, a) for c, a, _ in brief(day)]
+        self.assertIn(("focus", T(10, 30)), cats, "15분 틈은 그대로")
+        self.assertIn(("focus", T(11)), cats, "사이에 off 가 끼면 그대로")
+        self.assertIn(("remote", T(11, 5)), cats)
+
+    def test_in_progress_ends_with_remote_after_last_active_47(self):
+        # §47 오늘, 수집기 살아 있음. 17시 퇴근 → 21시 원격: '진행 중' 이 아니라 퇴근 17:15
+        base = (Ev().start(T(9)).app(T(9), CODE, "a.py").add("idle_on", T(17)))
+        now = T(21, 30)
+        alive = [session(T(9), None, last_seen=now)]
+        day = run(copy.deepcopy(base.events), alive, now=now)
+        self.assertTrue(day["summary"]["in_progress"], "원격이 없으면 그대로 진행 중")
+        base.add("remote_on", T(21))
+        day = run(base.events, alive, now=now)
+        sm = day["summary"]
+        self.assertFalse(sm["in_progress"], "퇴근 뒤 원격으로 붙어 있으면 진행 중이 아니다")
+        self.assertAlmostEqual(sm["last_active"], T(17, 15))
+        self.assertAlmostEqual(sm["attend_sec"], 8 * 3600 + 15 * 60)
+        self.assertEqual(brief(day)[-2][0], "absent", "퇴근 뒤 빈 시간은 부재")
+        # 원격을 끊은 뒤에도(꼬리) 마찬가지
+        base.add("idle_on", T(21, 40)).add("remote_off", T(21, 45))
+        now = T(22, 30)
+        day = run(base.events, [session(T(9), None, last_seen=now)], now=now)
+        self.assertFalse(day["summary"]["in_progress"])
+        self.assertAlmostEqual(day["summary"]["last_active"], T(17, 15))
+
     def test_override_split_and_later_wins(self):
         ev = Ev().start(T(9)).app(T(9), CODE, "a.py").stop(T(12))
         sessions = [session(T(9), T(12), reason="stop")]

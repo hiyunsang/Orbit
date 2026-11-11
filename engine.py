@@ -190,7 +190,7 @@ def display_name(exe, title, names=None):
 
 # ------------------------------------------------------------------ 상태기계
 class _State(object):
-    __slots__ = ("exe", "title", "idle_since", "locked", "remote", "paused", "stopped")
+    __slots__ = ("exe", "title", "idle_since", "locked", "remote", "remote_end", "paused", "stopped")
 
     def __init__(self):
         self.reset()
@@ -202,6 +202,7 @@ class _State(object):
         self.idle_since = None
         self.locked = False
         self.remote = False
+        self.remote_end = None      # §47 마지막 remote_off 시각
         self.paused = False
 
     def apply(self, ev):
@@ -229,6 +230,7 @@ class _State(object):
             self.remote = True
         elif kind == "remote_off":
             self.remote = False
+            self.remote_end = ts
         elif kind == "pause":
             self.paused = True
         elif kind == "resume":
@@ -236,8 +238,12 @@ class _State(object):
         # 알 수 없는 kind 는 무시
 
     def snapshot(self):
+        # §47 원격 꼬리: 원격이 끝났는데 마지막 입력이 원격 중(이전)이다 — 원격을 끊고 간 뒤 PC 앞엔 아무도 없다.
+        # 입력이 다시 들어오면(idle_off) idle_since 가 None 이 되어 풀린다.
+        remote_tail = (self.idle_since is not None and self.remote_end is not None
+                       and self.idle_since <= self.remote_end)
         return (self.exe, self.title, self.idle_since, self.locked,
-                self.remote, self.paused, self.stopped)
+                self.remote, self.paused, self.stopped, remote_tail)
 
 
 _IDLE_FLOOR_KINDS = ("start", "idle_off")
@@ -398,7 +404,7 @@ def _categorize(parts, rules, cfg):
     """3. 구간 카테고리 결정 → piece 목록"""
     pieces = []
     for a, b, st, covered in parts:
-        exe, title, idle_since, locked, remote, paused, stopped = st
+        exe, title, idle_since, locked, remote, paused, stopped, remote_tail = st
         if not covered or stopped:
             pieces.append(_piece(a, b, "off", with_apps=False))
             continue
@@ -409,6 +415,10 @@ def _categorize(parts, rules, cfg):
             pieces.append(_piece(a, b, "remote", with_apps=False))
             continue
         if locked:
+            pieces.append(_piece(a, b, "away", with_apps=False))
+            continue
+        if remote_tail:
+            # §47 원격을 끊은 뒤 남은 유예(집중 15분 등)는 활동이 아니다 — 출근·퇴근·활동시간에서 뺀다
             pieces.append(_piece(a, b, "away", with_apps=False))
             continue
         c, rule = classify(exe, title, rules)
@@ -634,6 +644,28 @@ def _active_bounds(pieces):
     return first_active, last_active
 
 
+def _remote_after(pieces, last_active):
+    """§47 마지막 활동 뒤에 원격 구간이 있나 — 있으면 이미 연구실을 떠난 것(밖에서 붙은 것)이라 '진행 중' 이 아니다."""
+    if last_active is None:
+        return False
+    return any(p["category"] == "remote" and p["start"] >= last_active - _EPS for p in pieces)
+
+
+def _bridge_remote_gaps(pieces, gap_sec):
+    """§47 두 원격 구간 사이가 gap_sec(= idle_sec, 10분) 이하로 짧으면 그 사이도 원격 — Jump 재접속 틈(실측 0.2~4분)에
+    잡힌 입력·창은 원격으로 한 것이다. 사이에 off·paused 가 끼면 잇지 않는다. 입력 dict 는 고치지 않는다."""
+    out = list(pieces)
+    rem = [i for i, p in enumerate(out) if p["category"] == "remote"]
+    for i, j in zip(rem, rem[1:]):
+        if j == i + 1 or out[j]["start"] - out[i]["end"] > gap_sec + _EPS:
+            continue
+        if any(p["category"] in ("off", "paused") for p in out[i + 1:j]):
+            continue
+        for k in range(i + 1, j):
+            out[k] = _piece(out[k]["start"], out[k]["end"], "remote", with_apps=False)
+    return out
+
+
 def _convert_absent(pieces, first_active, last_active, in_progress):
     """9. absent 변환 (DESIGN §11.1) — 출근 전·퇴근 후에 PC 만 켜져 있던 away 를 absent 로.
 
@@ -761,6 +793,8 @@ def build_day(date_str, events, sessions, overrides, rules, cfg, now_ts, names=N
         parts = _split_by_coverage(segs, cov)
         # 3. 카테고리
         pieces = _categorize(parts, rules, cfg)
+        # 3b. §47 원격 재접속 틈은 원격
+        pieces = _bridge_remote_gaps(pieces, float(cfg.get("idle_sec", DEFAULT_CONFIG["idle_sec"])))
         # 4. 딴짓 진입 횟수 (흡수 전)
         entries = _count_distraction_entries(pieces)
         # 5. 흡수
@@ -778,6 +812,8 @@ def build_day(date_str, events, sessions, overrides, rules, cfg, now_ts, names=N
     #    absent 변환은 active 구간을 바꾸지 않으므로 요약의 first/last_active 는 변환 전후 동일하다.
     in_progress = _is_in_progress(date_str, cfg, now_ts, sessions)
     first_active, last_active = _active_bounds(pieces)
+    if in_progress and _remote_after(pieces, last_active):
+        in_progress = False         # §47 퇴근 뒤 집에서 원격으로 붙어 있어도 '진행 중' 이 아니다
     pieces = _convert_absent(pieces, first_active, last_active, in_progress)
     pieces = _merge_same(pieces, lambda p: (p["category"], p["source"], p["override_id"]))
 
