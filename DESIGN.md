@@ -1470,3 +1470,13 @@ Anki 가 스스로 안 하니 호라리움이 눌러 준다. 단, **애드온이
 - `--mono`(§41)는 이미 "Geist Mono" 가 맨 앞 — `D-3` · 궤도 눈금 같은 숫자뿐인 곳.
 - 로그인 화면(§36)은 Pretendard 그대로 — 로그인 전에 열리는 정적 파일 목록(`_OPEN_STATIC`)을 늘리지 않으려고 `server.py` 는 손대지 않았다.
 - 검증: `test_static_layout.py::test_geist_font_design_43`(@font-face 둘, 파일 머리 `wOF2`, 사용권, `--font` 순서, 외부 글꼴 주소 없음). 실측: `document.fonts` 에 두 글꼴이 loaded, 430·1280 화면.
+
+## 44. 아이콘 주소에 판 번호 (2026-11-11) — static/*.html, static/manifest.json, logo/make_orbit.py
+
+사용자 *"컴퓨터에서 열면 여전히 하단부랑 맨 위 칸 아직도 아이콘 호라리움이야"*. PC 에서는 `launch.pyw` 가 크롬을 `--app` 창으로, 앱 전용 프로필(`data\browser-profile`)로 연다. 그 창의 제목 줄과 작업 표시줄 아이콘은 페이지의 favicon 이다.
+- 원인: 크롬은 favicon 을 프로필의 `Favicons` DB 에 **아이콘 주소별로** 저장해 두고, 주소가 같으면 다시 받지 않는다. 서버가 `Cache-Control: no-store` 를 보내도 마찬가지였다. 그 DB 의 `/static/horarium.ico` 는 이름을 바꾸기 전(2026-11-10 밤)에 받은 금색 H 그대로였다.
+- 고침: `index.html`·`login.html` 의 아이콘·매니페스트 링크와 `manifest.json` 의 아이콘 주소 끝에 **판 번호 `?v=orbit2`**. 주소가 달라지니 크롬이 새로 받는다. 서버는 쿼리를 떼고 경로만 보므로(`gate` 의 `urlparse(raw_path).path`) 로그인 전 공개 목록(`_OPEN_STATIC`)도 그대로 맞는다. 파일 이름(`horarium.ico`)은 §37 대로 그대로.
+- **아이콘을 다시 만들면 판 번호를 올린다**(`orbit3` …). 안 올리면 이미 연 기기에는 옛 아이콘이 남는다.
+- 맨 위의 `app_icon.ico`(2026-09 금색 H, 시작 메뉴 바로가기 `MAENG 출근기록.lnk` 가 쓰던 것)도 `make_orbit.py` 가 Orbit 아이콘으로 만든다. 바로가기들(시작 메뉴 · 이 폴더)은 이름을 `Orbit` 으로, 아이콘을 `logo\orbit.ico` 로 — 윈도우 아이콘 캐시가 옛 그림을 붙들지 않게 경로째 바꾼다.
+- 다른 기기(노트북 크롬)에 '앱으로 설치' 해 둔 Orbit 은 설치할 때의 이름·아이콘을 따로 갖고 있다 — 크롬이 다음 실행 때 바뀐 manifest 를 보고 갱신을 묻거나, 지우고 다시 설치하면 된다.
+- 검증: `test_static_layout.py::test_icon_cache_bust_design_44`. 실측: 판 번호 붙은 주소가 200 으로 나오는지, 다시 만든 `app_icon.ico` 가 Orbit 마크인지.

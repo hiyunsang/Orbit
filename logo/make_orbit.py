@@ -8,7 +8,7 @@ Orbit 로고 생성기 (DESIGN §37) — 옛 이름 Horarium 의 금색 H(make_l
         아이폰에는 이 글꼴이 없으므로 윤곽을 SVG 경로로 뽑는다.
 
 실행(개발 도구, 앱 실행에는 필요 없음):  C:\\Users\\PC1\\anaconda3\\python.exe logo\\make_orbit.py
-내놓는 것: ..\\static\\ logo-mark.svg · favicon.svg · icon-180/192/512.png · horarium.ico
+내놓는 것: ..\\static\\ logo-mark.svg · favicon.svg · icon-180/192/512.png · horarium.ico, ..\\app_icon.ico(§44)
           이 폴더  orbit.ico(바탕화면 바로가기) · orbit-preview.png · wordmark-o.svg(마크가 O 인 판, 보관)
 """
 import io
@@ -249,7 +249,7 @@ def main(static=STATIC, here=HERE):
         print("   static/icon-%d.png" % n)
     ico_sizes = [16, 24, 32, 48, 64, 128, 256]
     imgs = [render_icon(n, "disc", 0.84) for n in ico_sizes]
-    for target in (os.path.join(static, "horarium.ico"), os.path.join(here, "orbit.ico")):
+    for target in (os.path.join(static, "horarium.ico"), os.path.join(here, "orbit.ico"), os.path.join(ROOT, "app_icon.ico")):   # §44 app_icon.ico 도
         imgs[-1].save(target, format="ICO", sizes=[(n, n) for n in ico_sizes], append_images=imgs[:-1])
         print("  ", os.path.relpath(target, ROOT))
     preview_sheet(os.path.join(here, "orbit-preview.png"))

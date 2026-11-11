@@ -510,6 +510,21 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertIn('--font: "Geist", "Pretendard Variable",', self.css, "§43 라틴은 Geist, 한글은 Pretendard")
         self.assertNotIn("fonts.googleapis", self.css + self.html, "외부 리소스 0 — 글꼴도 static 에서")
 
+    def test_icon_cache_bust_design_44(self):
+        self.assertIsNotNone(re.search(r"^##\s*44\.", self.design, re.M), "DESIGN.md 에 §44 가 없다")
+        login = _read(os.path.join(common.STATIC_DIR, "login.html"))
+        man = _read(os.path.join(common.STATIC_DIR, "manifest.json"))
+        for page, name in ((self.html, "index.html"), (login, "login.html")):
+            head = page[:page.index("</head>")]
+            links = re.findall(r'<link rel="(?:icon|apple-touch-icon|manifest)"[^>]*href="([^"]+)"', head)
+            self.assertTrue(links, name)
+            for href in links:
+                self.assertIn("?v=", href, "§44 %s 의 아이콘 링크 %s 에 판 번호가 없다 — 크롬이 옛 아이콘을 계속 쓴다" % (name, href))
+        for src in re.findall(r'"src":\s*"([^"]+)"', man):
+            self.assertIn("?v=", src, "§44 manifest 아이콘 %s 에 판 번호" % src)
+        gen = io.open(os.path.join(ROOT, "logo", "make_orbit.py"), encoding="utf-8").read()
+        self.assertIn('os.path.join(ROOT, "app_icon.ico")', gen, "§44 app_icon.ico 도 Orbit 아이콘으로 만든다")
+
     def test_design_19_documented(self):
         self.assertIsNotNone(
             re.search(r"^##\s*19\.", self.design, re.M),
