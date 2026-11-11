@@ -1,0 +1,39 @@
+Orbit
+Copyright (c) 2026 hiyunsang. All rights reserved.
+
+This repository is public for viewing only. No license is granted.
+
+Without prior written permission from the copyright holder, you may not
+use, copy, modify, merge, publish, distribute, sublicense, or sell any part
+of this software, in source or compiled form.
+
+Viewing and forking this repository on GitHub is allowed only to the extent
+required by the GitHub Terms of Service.
+
+Third-party files keep their own licenses:
+
+  static/PretendardVariable.woff2        SIL Open Font License 1.1
+                                         (static/Pretendard-LICENSE.txt)
+  static/GeistVariable.woff2,
+  static/GeistMonoVariable.woff2         SIL Open Font License 1.1
+                                         (static/Geist-LICENSE.txt)
+  tests/fixtures/*.html                  Pages saved from www.hongik.ac.kr for
+                                         tests only. They belong to their owners.
+  logo/wordmark-o.svg                    Drawn from Malgun Gothic glyph outlines
+                                         (Microsoft). Archived, not used by the app.
+
+--------------------------------------------------------------------------
+
+Orbit
+저작권 (c) 2026 hiyunsang. 모든 권리 보유.
+
+이 저장소는 보기만 할 수 있게 공개한 것이며, 어떤 사용권도 주지 않습니다.
+
+저작권자의 서면 허락 없이 이 소프트웨어의 어느 부분도 사용·복사·수정·배포·
+재허락·판매할 수 없습니다. 소스든 실행 파일이든 같습니다.
+
+깃허브에서 보고 포크하는 것은 깃허브 이용약관이 요구하는 만큼만 허용됩니다.
+
+글꼴 파일은 각자의 사용권(SIL OFL 1.1)을 따르고, tests/fixtures 의 HTML 은
+테스트용으로 저장한 홍익대 누리집 화면이며 원래 주인의 것입니다.
+logo/wordmark-o.svg 는 맑은 고딕 글자 윤곽으로 그린 보관용 파일로, 앱에서 쓰지 않습니다.

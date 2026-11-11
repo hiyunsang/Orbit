@@ -270,3 +270,7 @@
 | `DESIGN.md` | 설계 계약서 (개발용) |
 
 실행 환경: Python 3.8 (`C:\Users\PC1\AppData\Local\Programs\Python\Python38`), 표준 라이브러리 + pywin32 만 사용. 기록·화면은 인터넷 없이 동작하고, 학교 공지 카드만 인터넷을 씁니다(안 되면 그 카드만 비어 있습니다).
+
+## 라이선스
+
+모든 권리 보유(All rights reserved). 저장소는 보기만 할 수 있게 공개한 것이며, 허락 없이 사용·복사·수정·배포·판매할 수 없습니다. 글꼴(Pretendard · Geist)은 각자의 SIL Open Font License 를 따릅니다. 자세한 것은 `LICENSE`.
