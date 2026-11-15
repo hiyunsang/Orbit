@@ -52,6 +52,9 @@ class StaticLayoutTest(unittest.TestCase):
         cls.design = _read(os.path.join(ROOT, "DESIGN.md"))
         cls.notices_js = _read(os.path.join(common.STATIC_DIR, "notices.js"))
         cls.server = _read(os.path.join(ROOT, "server.py"))
+        cls.common = _read(os.path.join(ROOT, "common.py"))
+        cls.plans = _read(os.path.join(ROOT, "plans.py"))
+        cls.inbox = _read(os.path.join(ROOT, "inbox.py"))
 
     # ---- §18.3 하루 보기 2열 예외 → §49 에서 폰 화면 한 줄(가운데)로 바뀜 ----
     def test_day_two_column_exception_exists(self):
@@ -184,7 +187,7 @@ class StaticLayoutTest(unittest.TestCase):
     def test_sidebar_order_design_20(self):
         ids = re.findall(r'<section class="side-sec" id="(card-[a-z]+)"', self.html)
         self.assertEqual(ids, [
-            "card-tonight", "card-due", "card-period", "card-vocab", "card-anki", "card-todos", "card-notes", "card-budget", "card-night", "card-drawer",
+            "card-tonight", "card-due", "card-period", "card-vocab", "card-anki", "card-todos", "card-keeps", "card-notes", "card-budget", "card-night", "card-drawer",
             "card-events", "card-notices", "card-unknown", "card-pause", "card-devices", "card-reading",
         ], "사이드바 카드 순서가 §20.2·§21.5·§22.2·§23.2·§23.3 과 다르다")
 
@@ -278,7 +281,9 @@ class StaticLayoutTest(unittest.TestCase):
             self.assertIn('id="%s"' % z, self.html, z + " 구역 머리가 없다 (§29.1)")
         self.assertNotIn('id="card-schedule"', self.html, "학사 일정 카드는 타임라인에 합쳤다 (§29.3)")
         self.assertNotIn('id="event-input"', self.html, "입력은 할 일 칸 하나 (§29.2)")
-        self.assertIn("var NEEDS_PARSE", self.js)
+        # §51: 날짜 낱말로 가르던 프론트 정규식은 서버(inbox.NEEDS_PARSE — claude 가 없을 때만)로 옮겼다
+        self.assertNotIn("var NEEDS_PARSE", self.js)
+        self.assertIn("NEEDS_PARSE = re.compile(", self.inbox)
         self.assertIn("function renderAgenda()", self.js)
 
     def test_small_four_design_30(self):
@@ -304,7 +309,7 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertNotIn('"mine mine"', self.css, "§49 §34 의 넓은 창 두 칸 격자는 없앴다")
         self.assertNotIn("노랭이 · 초록이 · 작은 창으로 열림", self.html, "§32 단어 카드는 버튼 한 줄")
         self.assertIn("#card-todos .todo-text, #card-todos .evt-t { font-size: 15px; }", self.css)
-        self.assertIn('placeholder="할 일 · 마감 · 일정 (예: 24일 숙제 / THK 문의)"', self.html)
+        self.assertIn('<textarea id="todo-input" rows="1" placeholder="떠오르는 대로 — 할 일 · 일정 · 기억할 것"', self.html, "§51 받아 적기 칸")
         self.assertIn('"anki_card": bool(CFG.get("anki_card", False))', self.server)
 
     def test_todo_visibility_design_33(self):
@@ -586,6 +591,38 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertIn("function stripMove(dir)", self.js)
         self.assertIn("if (nd > todayStr()) nd = todayStr();", self.js, "줄의 › 는 오늘까지만")
         self.assertIn("loadStrip(false);                                             // §50", self.js, "하루를 받으면 줄도 맞춘다")
+
+    def test_inbox_design_51(self):
+        """§51 받아 적기 · 개인 비서 — 내가 적은 할 일이 맨 위, 적은 글은 claude 가 나누고 결과를 되돌릴 수 있다."""
+        self.assertIsNotNone(re.search(r"^##\s*51\.", self.design, re.M), "DESIGN.md 에 §51 이 없다")
+        ph = self.js[self.js.index("function renderTasksPhone()"):self.js.index("// ------------------------------------------------------------ §51 받아 적기")]
+        order = ["grp('방금 적은 것'", "grp('하는 중'", "grp('할 일'", "grp('지남 · 오늘'", "grp('날짜 확인'", "grp('이번 주'", "grp('나중에'"]
+        pos = [ph.index(g) for g in order]
+        self.assertEqual(pos, sorted(pos), "할 일 칸 묶음 순서: 방금 적은 것 → 하는 중 → 할 일 → 지남·오늘 → 날짜 확인 → 이번 주 → 나중에")
+        self.assertNotIn("grp('날짜 없음'", ph)
+        add = self.js[self.js.index("function addTask()"):self.js.index("function addTodo()")]
+        self.assertIn("api('/api/inbox', { text: text, day: sideDate() })", add, "모든 글은 받아 적기로")
+        self.assertNotIn("/api/todos'", add)
+        self.assertIn("if (e.isComposing || e.keyCode === 229) return;", self.js, "한글 조합 중 Enter 로 넣지 않는다")
+        self.assertIn("if (e.key !== 'Enter' || e.shiftKey) return;", self.js, "Shift+Enter 는 줄바꿈")
+        self.assertIn("function loadInbox()", self.js)
+        self.assertIn("if (busy) state.inboxPoll = setTimeout(loadInbox, 2500);", self.js, "나누는 동안만 다시 묻는다")
+        self.assertIn("api('/api/inbox/undo', { id: x.id })", self.js)
+        self.assertIn("loadInbox(); loadKeeps();          // §51", self.js, "옆 판을 다시 받을 때 같이")
+        # 기억 칸 · 세로 바 · 타일
+        self.assertIn('<section class="side-sec" id="card-keeps">', self.html)
+        self.assertLess(self.html.index('id="card-todos"'), self.html.index('id="card-keeps"'))
+        self.assertIn('<a href="#/keeps" data-sec="keeps">기억</a>', self.html)
+        self.assertIn("var TILE_IDS = ['card-keeps',", self.js)
+        self.assertIn("keeps: 'card-keeps'", self.js)
+        self.assertIn("#main.phone-pages.pg-home #card-keeps", self.css)
+        # 서버
+        for route in ('("GET", "/api/inbox")', '("POST", "/api/inbox")', '("POST", "/api/inbox/undo")', '("POST", "/api/inbox/dismiss")',
+                      '("POST", "/api/inbox/move")', '("GET", "/api/keeps")', '("POST", "/api/keeps/delete")'):
+            self.assertIn(route, self.server)
+        for table in ("CREATE TABLE IF NOT EXISTS inbox(", "CREATE TABLE IF NOT EXISTS keeps(", "CREATE TABLE IF NOT EXISTS item_meta("):
+            self.assertIn(table, self.common)
+        self.assertIn("def run_claude(prompt, timeout", self.plans, "claude 부르기는 plans 와 같은 것(창 없이)")
 
     def test_design_19_documented(self):
         self.assertIsNotNone(

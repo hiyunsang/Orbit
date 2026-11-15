@@ -588,11 +588,11 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
   #main.phone-pages.pg-home.hero-open > .day-summary .sum-label { font-size: 13px; color: var(--text-3); }
   #main.phone-pages.pg-home.hero-open > .day-summary .sum-value { font-size: 15px; font-weight: 500; margin-top: 2px; }
   #main.phone-pages.pg-home > #phone-more { display: block; order: 3; }
-  #main.phone-pages.pg-home #card-tonight:not([hidden]), #main.phone-pages.pg-home #card-todos, #main.phone-pages.pg-home #card-events, #main.phone-pages.pg-home #card-notes,
+  #main.phone-pages.pg-home #card-tonight:not([hidden]), #main.phone-pages.pg-home #card-todos, #main.phone-pages.pg-home #card-keeps, #main.phone-pages.pg-home #card-events, #main.phone-pages.pg-home #card-notes,
   #main.phone-pages.pg-home #card-night, #main.phone-pages.pg-home #card-drawer, #main.phone-pages.pg-home #card-notices:not([hidden]),
   #main.phone-pages.pg-home #card-unknown, #main.phone-pages.pg-home #card-pause, #main.phone-pages.pg-home #card-reading:not([hidden]),
   #main.phone-pages.pg-home #card-devices:not([hidden]), #main.phone-pages.pg-timeline:not(.view-day) #card-period:not([hidden]) { display: block !important; }
-  #card-tonight { order: 1; } #card-todos { order: 2; } #card-events { order: 3; } #card-notes { order: 4; } #card-night { order: 5; } #card-drawer { order: 6; }
+  #card-tonight { order: 1; } #card-todos { order: 2; } #card-keeps { order: 2; } #card-events { order: 3; } #card-notes { order: 4; } #card-night { order: 5; } #card-drawer { order: 6; }
   #card-notices { order: 7; } #card-unknown { order: 8; } #card-pause { order: 9; } #card-reading { order: 10; } #card-devices { order: 11; }
   /* 타임라인 화면: 머리 아래부터 바닥까지 */
   #main.phone-pages.pg-timeline.view-day { padding-bottom: 0; }
@@ -657,8 +657,9 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
   .pv-big:empty + .pv-cap { margin-top: 0; font-size: 15px; -webkit-line-clamp: 3; color: var(--text); }
   /* 할 일: 입력칸 + 단추 */
   #main.phone-pages #card-todos .todo-input-row { margin: 0 0 4px; gap: 8px; align-items: stretch; }
-  #main.phone-pages #card-todos #todo-input { height: 42px; padding: 0 12px; border-radius: 8px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-2); font-size: 16px; }
+  #main.phone-pages #card-todos #todo-input { display: block; min-height: 42px; height: 42px; padding: 10px 12px; border-radius: 8px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-2); font: inherit; font-size: 16px; line-height: 20px; resize: none; overflow: hidden; }
   #main.phone-pages #sidebar input::placeholder, #main.phone-pages #sidebar textarea::placeholder { font-size: 14px; color: var(--text-3); }   /* 글자는 16(아이폰 확대 방지), 안내만 작게 */
+  #main.phone-pages #card-todos .todo-input-row { align-items: flex-end; }
   #main.phone-pages #card-todos #btn-todo-add { flex: none; height: 42px; min-height: 0; padding: 0 16px; border-radius: 8px; font-size: 14px; font-weight: 500; }
   /* 줄 — 사이는 1px 선 */
   .ph-list { display: block; }
@@ -694,6 +695,20 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
   .ph-row.chev::after, .ph-link::after { content: ""; flex: none; margin-left: auto; margin-right: 3px; width: 6px; height: 6px; border-right: 1.5px solid var(--text-3); border-top: 1.5px solid var(--text-3); transform: rotate(45deg); }
   .ph-row.chev.up::after { transform: rotate(-45deg); }
   .ph-empty { padding: 12px 0 0; font-size: 13px; color: var(--text-3); }
+  /* §51 받아 적기: 방금 적은 글 — 나누는 중이면 점선 동그라미, 나눈 뒤에는 어디로 갔는지 한 줄씩 + 되돌리기 */
+  .ph-ib { position: relative; flex: none; width: 17px; height: 17px; margin-top: 2px; border-radius: 50%; border: 1.5px dashed var(--text-3); }
+  .ph-row.inbox:not(.busy) .ph-ib { border: 0; }
+  .ph-row.inbox:not(.busy) .ph-ib::before { content: ""; position: absolute; left: 3px; top: 7px; width: 10px; height: 1.5px; background: var(--text-3); }
+  .ph-row.inbox:not(.busy) .ph-ib::after { content: ""; position: absolute; left: 8px; top: 4.5px; width: 5px; height: 5px; border-right: 1.5px solid var(--text-3); border-top: 1.5px solid var(--text-3); transform: rotate(45deg); }
+  .ph-row.inbox .ph-t { color: var(--text-2); white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .ph-row.inbox .ph-b { cursor: default; }
+  .ib-res { list-style: none; margin: 6px 0 0; padding: 0; }
+  .ib-res li { display: flex; gap: 10px; padding: 3px 0; font-size: 14px; line-height: 1.45; color: var(--text); }
+  .ib-res .k { flex: none; min-width: 64px; font-size: 13px; color: var(--text-3); }
+  .ph-row.inbox .ph-pills { margin-top: 8px; }
+  /* §51 기억: 점 하나 + 글. 누르면 할 일로 · 삭제 */
+  .ph-dot { flex: none; width: 17px; display: flex; justify-content: center; padding-top: 9px; }
+  .ph-dot::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--text-3); }
   /* 설정(맨 아래 칸) */
   .ph-link { position: relative; display: flex; flex-wrap: wrap; column-gap: 8px; width: 100%; min-height: 44px; padding: 8px 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: none; font: inherit; font-size: 15px; font-weight: 400; color: var(--text); text-align: left; text-decoration: none; }
   /* 오른쪽 세로 바(§41): 화면에 붙어 따라다닌다. 누르면 그 칸으로(접혀 있으면 펼친다), 내려 보는 동안 지금 칸에 흰 날이 따라온다 */

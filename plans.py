@@ -72,7 +72,8 @@ def _no_window():
     return kw
 
 
-def _claude_json(prompt, timeout, tools=None, max_turns=None):
+def run_claude(prompt, timeout, tools=None, max_turns=None):
+    """claude -p 를 창 없이 돌려 표준 출력 글을 돌려준다. claude 가 없거나 실패하면 None. (§51 inbox.py 도 쓴다)"""
     exe = _find_claude()
     if not exe:
         return None
@@ -83,17 +84,23 @@ def _claude_json(prompt, timeout, tools=None, max_turns=None):
         args += ["--max-turns", str(max_turns)]
     try:
         r = subprocess.run(args, input=prompt.encode("utf-8"), capture_output=True, timeout=timeout, **_no_window())
-        out = r.stdout.decode("utf-8", "replace")
-        # 마지막 JSON 객체를 고른다(검색 과정 설명이 앞에 붙어 올 수 있다)
-        cands = re.findall(r"\{[^{}]*\}", out, re.S)
-        for c in reversed(cands):
-            try:
-                return json.loads(c)
-            except Exception:
-                continue
-        return None
+        return r.stdout.decode("utf-8", "replace")
     except Exception:
         return None
+
+
+def _claude_json(prompt, timeout, tools=None, max_turns=None):
+    out = run_claude(prompt, timeout, tools, max_turns)
+    if out is None:
+        return None
+    # 마지막 JSON 객체를 고른다(검색 과정 설명이 앞에 붙어 올 수 있다)
+    cands = re.findall(r"\{[^{}]*\}", out, re.S)
+    for c in reversed(cands):
+        try:
+            return json.loads(c)
+        except Exception:
+            continue
+    return None
 
 
 def parse_prompt(text, today):
@@ -222,42 +229,60 @@ def resolve(eid, text, today, cfg=None, conn=None):
     if own:
         conn = common.connect(cfg)
     try:
-        p = parse_text(text, today)
-        title = str(p.get("title") or text)[:60]
-        kind = p.get("kind") if p.get("kind") in KINDS else "task"
-        repeat = "weekly" if p.get("repeat") == "weekly" else ""
-        day = p.get("day") if valid_date(p.get("day")) else None
-        tm = p.get("time") if isinstance(p.get("time"), str) and re.match(r"^\d{2}:\d{2}$", p.get("time")) else None
-        src, conf, note = "", "confirmed" if day else "unknown", ""
-        if day is None and p.get("needs_lookup") and p.get("lookup_query"):
-            conn.execute("UPDATE plans SET title=?, kind=?, repeat=?, note=?, updated_ts=? WHERE id=?",
-                         (title, kind, repeat, "날짜를 웹에서 찾는 중", time.time(), eid))
-            conn.commit()
-            lk = lookup_date(str(p.get("lookup_query")), today)
-            if valid_date(lk.get("day")):
-                day = lk.get("day")
-                conf = lk.get("confidence") if lk.get("confidence") in ("confirmed", "guess") else "guess"
-            else:
-                conf = "unknown"
-            src = str(lk.get("source_url") or "")[:300]
-            note = str(lk.get("note") or "")[:300]
-            if lk.get("title") and len(str(lk.get("title"))) < 60 and not day:
-                pass
-        status = "ready" if p else "failed"
-        conn.execute(
-            "UPDATE plans SET title=?, kind=?, repeat=?, day=?, time=?, source_url=?, confidence=?, note=?, status=?, updated_ts=? WHERE id=?",
-            (title, kind, repeat, day, tm, src, conf, note, status, time.time(), eid))
-        conn.commit()
+        fill(conn, eid, text, parse_text(text, today), today)
     except Exception as e:  # 어떤 실패도 행을 잃지 않는다
-        try:
-            conn.execute("UPDATE plans SET status='failed', note=?, updated_ts=? WHERE id=?",
-                         ("처리 실패: %s" % str(e)[:120], time.time(), eid))
-            conn.commit()
-        except Exception:
-            pass
+        _failed(conn, eid, e)
     finally:
         if own:
             conn.close()
+
+
+def _failed(conn, eid, e):
+    try:
+        conn.execute("UPDATE plans SET status='failed', note=?, updated_ts=? WHERE id=?",
+                     ("처리 실패: %s" % str(e)[:120], time.time(), eid))
+        conn.commit()
+    except Exception:
+        pass
+
+
+def fill_safe(conn, eid, text, p, today):
+    """fill 과 같되 실패해도 행은 failed 로 남긴다(§51 받아 적기가 가른 결과로 웹 찾기를 할 때)."""
+    try:
+        fill(conn, eid, text, p, today)
+    except Exception as e:
+        _failed(conn, eid, e)
+
+
+def fill(conn, eid, text, p, today):
+    """가른 결과 p(제목·종류·날짜·반복·needs_lookup)로 parsing 행을 채운다.
+    날짜가 없고 공개 일정이면 웹에서 찾는다 — 몇 분 걸릴 수 있다."""
+    p = p or {}
+    title = str(p.get("title") or text)[:60]
+    kind = p.get("kind") if p.get("kind") in KINDS else "task"
+    repeat = "weekly" if p.get("repeat") == "weekly" else ""
+    day = p.get("day") if valid_date(p.get("day")) else None
+    tm = p.get("time") if isinstance(p.get("time"), str) and re.match(r"^\d{2}:\d{2}$", p.get("time")) else None
+    src, conf, note = "", "confirmed" if day else "unknown", ""
+    if day is None and p.get("needs_lookup") and p.get("lookup_query"):
+        conn.execute("UPDATE plans SET title=?, kind=?, repeat=?, note=?, updated_ts=? WHERE id=?",
+                     (title, kind, repeat, "날짜를 웹에서 찾는 중", time.time(), eid))
+        conn.commit()
+        lk = lookup_date(str(p.get("lookup_query")), today)
+        if valid_date(lk.get("day")):
+            day = lk.get("day")
+            conf = lk.get("confidence") if lk.get("confidence") in ("confirmed", "guess") else "guess"
+        else:
+            conf = "unknown"
+        src = str(lk.get("source_url") or "")[:300]
+        note = str(lk.get("note") or "")[:300]
+        if lk.get("title") and len(str(lk.get("title"))) < 60 and not day:
+            pass
+    status = "ready" if p else "failed"
+    conn.execute(
+        "UPDATE plans SET title=?, kind=?, repeat=?, day=?, time=?, source_url=?, confidence=?, note=?, status=?, updated_ts=? WHERE id=?",
+        (title, kind, repeat, day, tm, src, conf, note, status, time.time(), eid))
+    conn.commit()
 
 
 def upcoming(conn, today, horizon_days=120, cfg=None):

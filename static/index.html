@@ -186,12 +186,19 @@
 
     <section class="side-sec" id="card-todos">
       <div class="sec">할 일 <span class="hint-inline" id="todos-sub">날짜 있는 것 먼저</span><span class="hint-inline ph-only" id="ph-todos-n"></span></div>
+      <!-- §51 받아 적기: 떠오르는 대로 적으면 claude 가 할 일 · 마감 · 일정 · 기억으로 나눈다. Enter = 넣기, Shift+Enter = 줄바꿈 -->
       <div class="todo-input-row">
-        <input type="text" id="todo-input" placeholder="할 일 · 마감 · 일정 (예: 24일 숙제 / THK 문의)" title="그냥 적으면 할 일, 날짜나 마감 표현이 있으면 날짜를 가르고, 수업·회의처럼 때가 있는 건 일정으로">
-        <button class="primary" id="btn-todo-add" title="추가">추가</button>
+        <textarea id="todo-input" rows="1" placeholder="떠오르는 대로 — 할 일 · 일정 · 기억할 것" title="여러 가지를 한꺼번에 적어도 됩니다. 할 일 · 마감 · 일정 · 기억할 것으로 알아서 나누고, '끝냈다' 고 적으면 그 할 일을 끝냅니다. Enter 로 넣기, Shift+Enter 로 줄바꿈"></textarea>
+        <button class="primary" id="btn-todo-add" title="넣기">추가</button>
       </div>
       <ul class="list todo-list" id="todo-list"></ul>
       <div class="ph-list" id="ph-todo-list"></div>
+    </section>
+
+    <!-- 기억 (§51): 받아 적기가 '기억할 것' 으로 가른 것 — 들은 말 · 번호 · 치수 · 아이디어 -->
+    <section class="side-sec" id="card-keeps">
+      <div class="sec">기억 <span class="hint-inline" id="keeps-sub"></span></div>
+      <div class="ph-list" id="keep-list"></div>
     </section>
 
     <!-- 메모 (§30 압축): 오늘/고정을 탭으로, 칸은 3줄에서 시작해 쓴 만큼 늘어난다 -->
@@ -315,7 +322,7 @@
 </main>
 
 <!-- 폰: 오른쪽 세로 바 (§41) — 화면에 붙어 따라다닌다. 누르면 그 칸으로 -->
-<nav id="phone-rail" class="phone-rail" aria-label="바로 가기"><span class="rail-mark" id="rail-mark"></span><a href="#/today" data-sec="today">오늘</a><a href="#/timeline" data-sec="timeline">타임라인</a><a href="#/todos" data-sec="todos">할일</a><a href="#/events" data-sec="events">일정</a><a href="#/notes" data-sec="notes">메모</a><a href="#/night" data-sec="night">밤</a><a href="#/drawer" data-sec="drawer">서랍</a><a href="#/notices" data-sec="notices">공지</a><a href="#/tools" data-sec="tools">기록</a><a href="#/more" data-sec="more">설정</a></nav>
+<nav id="phone-rail" class="phone-rail" aria-label="바로 가기"><span class="rail-mark" id="rail-mark"></span><a href="#/today" data-sec="today">오늘</a><a href="#/timeline" data-sec="timeline">타임라인</a><a href="#/todos" data-sec="todos">할일</a><a href="#/keeps" data-sec="keeps">기억</a><a href="#/events" data-sec="events">일정</a><a href="#/notes" data-sec="notes">메모</a><a href="#/night" data-sec="night">밤</a><a href="#/drawer" data-sec="drawer">서랍</a><a href="#/notices" data-sec="notices">공지</a><a href="#/tools" data-sec="tools">기록</a><a href="#/more" data-sec="more">설정</a></nav>
 
 <div id="popover" class="popover" hidden role="dialog" aria-label="구간 분류">
   <div class="pop-head">

@@ -271,6 +271,28 @@ CREATE TABLE IF NOT EXISTS drawer(
     sort_order INTEGER NOT NULL DEFAULT 0,
     created_ts REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS inbox(
+    id INTEGER PRIMARY KEY,
+    text TEXT NOT NULL,
+    day TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'parsing',
+    result TEXT,
+    hidden INTEGER NOT NULL DEFAULT 0,
+    created_ts REAL NOT NULL,
+    updated_ts REAL
+);
+CREATE TABLE IF NOT EXISTS keeps(
+    id INTEGER PRIMARY KEY,
+    text TEXT NOT NULL,
+    area TEXT,
+    created_ts REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS item_meta(
+    ref TEXT PRIMARY KEY,
+    area TEXT,
+    someday INTEGER NOT NULL DEFAULT 0,
+    inbox_id INTEGER
+);
 """
 
 

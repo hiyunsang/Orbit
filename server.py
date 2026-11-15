@@ -59,6 +59,13 @@ except Exception as _e:
     EVENTS_ERROR = "%s: %s" % (type(_e).__name__, _e)
 
 try:
+    import inbox as my_inbox  # noqa: E402  (받아 적기 · 개인 비서, DESIGN §51)
+    INBOX_ERROR = None
+except Exception as _e:
+    my_inbox = None
+    INBOX_ERROR = "%s: %s" % (type(_e).__name__, _e)
+
+try:
     import schedule as academic_schedule  # noqa: E402  (대학원 학사일정, DESIGN §24)
     SCHEDULE_ERROR = None
 except Exception as _e:
@@ -656,7 +663,8 @@ def api_rule_delete(conn, query, body):
     return {"ok": True, "removed": removed}
 
 
-def _todo_row(r):
+def _todo_row(r, meta=None):
+    m = (meta or {}).get("t%d" % r["id"]) or {}
     return {
         "id": r["id"],
         "text": r["text"],
@@ -665,7 +673,13 @@ def _todo_row(r):
         "doing": int(r["doing"] or 0) if "doing" in r.keys() else 0,  # §20: todo_progress 행이 있으면 1
         "created_ts": r["created_ts"],
         "done_ts": r["done_ts"],
+        "area": m.get("area", ""),          # §51 분야(받아 적기가 가름)
+        "someday": m.get("someday", 0),     # §51 '나중에' — 목록 맨 아래로
     }
+
+
+def _meta(conn):
+    return my_inbox.meta_map(conn) if my_inbox is not None else {}
 
 
 def _next_sort_order(conn, day):
@@ -679,12 +693,13 @@ def api_todos_get(conn, query, body):
     date = (query.get("date") or [""])[0].strip() or common.today_str(CFG)
     _require_date(date)
     # §20: 진행 중 → 대기 → 완료 순. doing 은 todo_progress 행 유무
-    today = [_todo_row(r) for r in conn.execute(
+    meta = _meta(conn)
+    today = [_todo_row(r, meta) for r in conn.execute(
         "SELECT t.*, (p.todo_id IS NOT NULL) AS doing FROM todos t "
         "LEFT JOIN todo_progress p ON p.todo_id=t.id "
         "WHERE t.day=? ORDER BY doing DESC, t.done ASC, t.sort_order, t.id", (date,)
     ).fetchall()]
-    carried = [_todo_row(r) for r in conn.execute(
+    carried = [_todo_row(r, meta) for r in conn.execute(
         "SELECT t.*, (p.todo_id IS NOT NULL) AS doing FROM todos t "
         "LEFT JOIN todo_progress p ON p.todo_id=t.id "
         "WHERE t.day<? AND t.done=0 ORDER BY doing DESC, t.day, t.sort_order, t.id", (date,)
@@ -743,6 +758,10 @@ def api_todos_update(conn, query, body):
             raise ApiError(400, "text 가 비어 있습니다")
         sets.append("text=?")
         params.append(text)
+    if "someday" in body and my_inbox is not None:      # §51 '나중에' 표시(item_meta)
+        sd = body.get("someday")
+        my_inbox.set_meta(conn, "t%d" % tid, someday=(sd is True or sd == 1 or sd == "1" or sd == "true"))
+        conn.commit()
     if "day" in body:
         day = body.get("day")
         _require_date(day, "day")
@@ -762,6 +781,7 @@ def api_todos_delete(conn, query, body):
     tid = _int(body, "id")
     conn.execute("DELETE FROM todos WHERE id=?", (tid,))
     conn.execute("DELETE FROM todo_progress WHERE todo_id=?", (tid,))
+    conn.execute("DELETE FROM item_meta WHERE ref=?", ("t%d" % tid,))
     conn.commit()
     return {"ok": True}
 
@@ -1058,8 +1078,12 @@ def api_events_get(conn, query, body):
     _require_date(date)
     if my_events is None:
         return {"date": date, "items": [], "error": EVENTS_ERROR}
-    return {"date": date, "items": my_events.upcoming(conn, date, cfg=CFG),
-            "claude": my_events._find_claude() is not None}
+    items = my_events.upcoming(conn, date, cfg=CFG)
+    meta = _meta(conn)
+    for it in items:                         # §51 분야 · 나중에
+        m = meta.get("p%d" % it["id"]) or {}
+        it["area"], it["someday"] = m.get("area", ""), m.get("someday", 0)
+    return {"date": date, "items": items, "claude": my_events._find_claude() is not None}
 
 
 def api_events_add(conn, query, body):
@@ -1121,6 +1145,7 @@ def api_events_update(conn, query, body):
 def api_events_delete(conn, query, body):
     eid = _int(body, "id")
     conn.execute("DELETE FROM plans WHERE id=?", (eid,))
+    conn.execute("DELETE FROM item_meta WHERE ref=?", ("p%d" % eid,))
     conn.commit()
     return {"ok": True}
 
@@ -2190,6 +2215,83 @@ def api_devices_post(conn, query, body):
     return v
 
 
+# ── 받아 적기 · 개인 비서 (§51) ─────────────────────────────────
+def _need_inbox():
+    if my_inbox is None:
+        raise ApiError(500, "받아 적기 모듈이 없습니다: %s" % INBOX_ERROR)
+
+
+def api_inbox_get(conn, query, body):
+    _need_inbox()
+    return {"items": my_inbox.recent(conn), "claude": my_inbox.available()}
+
+
+def api_inbox_add(conn, query, body):
+    _need_inbox()
+    day = body.get("day") or common.today_str(CFG)
+    _require_date(day, "day")
+    try:
+        return my_inbox.add(conn, body.get("text"), day, CFG)
+    except ValueError:
+        raise ApiError(400, "글이 비어 있습니다")
+
+
+def api_inbox_undo(conn, query, body):
+    _need_inbox()
+    try:
+        return {"text": my_inbox.undo(conn, _int(body, "id"))}
+    except KeyError:
+        raise ApiError(404, "없는 글입니다")
+    except ValueError:
+        raise ApiError(409, "아직 나누는 중입니다")
+
+
+def api_inbox_dismiss(conn, query, body):
+    _need_inbox()
+    my_inbox.dismiss(conn, _int(body, "id"))
+    return {"ok": True}
+
+
+def api_inbox_move(conn, query, body):
+    _need_inbox()
+    day = body.get("day") or common.today_str(CFG)
+    _require_date(day, "day")
+    try:
+        return {"ref": my_inbox.move(conn, str(body.get("ref") or ""), body.get("to"), day)}
+    except KeyError:
+        raise ApiError(404, "없는 항목입니다")
+    except ValueError as e:
+        raise ApiError(400, str(e))
+
+
+def api_keeps_get(conn, query, body):
+    _need_inbox()
+    return {"items": my_inbox.keeps(conn)}
+
+
+def api_keeps_add(conn, query, body):
+    _need_inbox()
+    try:
+        return {"id": my_inbox.keep_add(conn, body.get("text"), str(body.get("area") or "")[:8])}
+    except ValueError:
+        raise ApiError(400, "글이 비어 있습니다")
+
+
+def api_keeps_update(conn, query, body):
+    _need_inbox()
+    try:
+        my_inbox.keep_update(conn, _int(body, "id"), body.get("text"))
+    except ValueError:
+        raise ApiError(400, "글이 비어 있습니다")
+    return {"ok": True}
+
+
+def api_keeps_delete(conn, query, body):
+    _need_inbox()
+    my_inbox.keep_delete(conn, _int(body, "id"))
+    return {"ok": True}
+
+
 ROUTES = {
     ("GET", "/api/day"): api_day,
     ("GET", "/api/notices"): api_notices,
@@ -2240,6 +2342,15 @@ ROUTES = {
     ("GET", "/api/devices"): api_devices_get,
     ("POST", "/api/devices"): api_devices_post,
     ("POST", "/api/restart"): api_restart,
+    ("GET", "/api/inbox"): api_inbox_get,
+    ("POST", "/api/inbox"): api_inbox_add,
+    ("POST", "/api/inbox/undo"): api_inbox_undo,
+    ("POST", "/api/inbox/dismiss"): api_inbox_dismiss,
+    ("POST", "/api/inbox/move"): api_inbox_move,
+    ("GET", "/api/keeps"): api_keeps_get,
+    ("POST", "/api/keeps"): api_keeps_add,
+    ("POST", "/api/keeps/update"): api_keeps_update,
+    ("POST", "/api/keeps/delete"): api_keeps_delete,
 }
 _KNOWN_PATHS = set(p for (_m, p) in ROUTES.keys())
 
