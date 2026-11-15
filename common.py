@@ -293,6 +293,10 @@ CREATE TABLE IF NOT EXISTS item_meta(
     someday INTEGER NOT NULL DEFAULT 0,
     inbox_id INTEGER
 );
+CREATE TABLE IF NOT EXISTS todo_due(
+    todo_id INTEGER PRIMARY KEY,
+    due TEXT NOT NULL
+);
 """
 
 

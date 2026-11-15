@@ -663,7 +663,7 @@ def api_rule_delete(conn, query, body):
     return {"ok": True, "removed": removed}
 
 
-def _todo_row(r, meta=None):
+def _todo_row(r, meta=None, dues=None):
     m = (meta or {}).get("t%d" % r["id"]) or {}
     return {
         "id": r["id"],
@@ -675,6 +675,7 @@ def _todo_row(r, meta=None):
         "done_ts": r["done_ts"],
         "area": m.get("area", ""),          # §51 분야(받아 적기가 가름)
         "someday": m.get("someday", 0),     # §51 '나중에' — 목록 맨 아래로
+        "due": (dues or {}).get(r["id"]),   # §52.2 기한(없으면 None)
     }
 
 
@@ -694,12 +695,13 @@ def api_todos_get(conn, query, body):
     _require_date(date)
     # §20: 진행 중 → 대기 → 완료 순. doing 은 todo_progress 행 유무
     meta = _meta(conn)
-    today = [_todo_row(r, meta) for r in conn.execute(
+    dues = my_inbox.due_map(conn) if my_inbox is not None else {}
+    today = [_todo_row(r, meta, dues) for r in conn.execute(
         "SELECT t.*, (p.todo_id IS NOT NULL) AS doing FROM todos t "
         "LEFT JOIN todo_progress p ON p.todo_id=t.id "
         "WHERE t.day=? ORDER BY doing DESC, t.done ASC, t.sort_order, t.id", (date,)
     ).fetchall()]
-    carried = [_todo_row(r, meta) for r in conn.execute(
+    carried = [_todo_row(r, meta, dues) for r in conn.execute(
         "SELECT t.*, (p.todo_id IS NOT NULL) AS doing FROM todos t "
         "LEFT JOIN todo_progress p ON p.todo_id=t.id "
         "WHERE t.day<? AND t.done=0 ORDER BY doing DESC, t.day, t.sort_order, t.id", (date,)
@@ -762,6 +764,12 @@ def api_todos_update(conn, query, body):
         sd = body.get("someday")
         my_inbox.set_meta(conn, "t%d" % tid, someday=(sd is True or sd == 1 or sd == "1" or sd == "true"))
         conn.commit()
+    if "due" in body and my_inbox is not None:          # §52.2 기한 — 날짜 또는 null(빼기)
+        due = body.get("due")
+        if due:
+            _require_date(due, "due")
+        my_inbox.set_due(conn, tid, due or None)
+        conn.commit()
     if "day" in body:
         day = body.get("day")
         _require_date(day, "day")
@@ -782,6 +790,7 @@ def api_todos_delete(conn, query, body):
     conn.execute("DELETE FROM todos WHERE id=?", (tid,))
     conn.execute("DELETE FROM todo_progress WHERE todo_id=?", (tid,))
     conn.execute("DELETE FROM item_meta WHERE ref=?", ("t%d" % tid,))
+    conn.execute("DELETE FROM todo_due WHERE todo_id=?", (tid,))
     conn.commit()
     return {"ok": True}
 

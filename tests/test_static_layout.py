@@ -624,6 +624,20 @@ class StaticLayoutTest(unittest.TestCase):
             self.assertIn(table, self.common)
         self.assertIn("def run_claude(prompt, timeout", self.plans, "claude 부르기는 plans 와 같은 것(창 없이)")
 
+    def test_secretary_design_52(self):
+        """§52 비서답게 — 이미 있는 줄을 고치고(기한 포함), 비서의 말을 보이고, 확인할 때까지 남긴다."""
+        self.assertIsNotNone(re.search(r"^##\s*52\.", self.design, re.M), "DESIGN.md 에 §52 가 없다")
+        self.assertIn("CREATE TABLE IF NOT EXISTS todo_due(", self.common)
+        self.assertIn("if (x.reply) b.appendChild(h('div', { class: 'ib-reply', text: x.reply }));", self.js, "비서의 말")
+        self.assertIn(".ib-reply {", self.css)
+        self.assertIn("text: '기한 빼기'", self.js)
+        self.assertIn("api('/api/todos/update', { id: it.id, due: null })", self.js)
+        ph = self.js[self.js.index("function renderTasksPhone()"):self.js.index("// ------------------------------------------------------------ §51 받아 적기")]
+        self.assertIn(".sort(byDue)", ph, "묶음 안에서 기한 가까운 것이 먼저")
+        self.assertIn("meta[1] === 'doing' || meta[3]", self.js, "기한 색을 쓰는 줄도 하는 중 표시는 남는다")
+        self.assertIn('TYPES = ("task", "deadline", "event", "note", "done", "same", "update")', self.inbox)
+        self.assertIn("SHOW_SEC = 24 * 3600", self.inbox)
+
     def test_design_19_documented(self):
         self.assertIsNotNone(
             re.search(r"^##\s*19\.", self.design, re.M),

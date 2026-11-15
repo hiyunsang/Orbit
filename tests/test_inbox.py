@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""tests/test_inbox.py — DESIGN §51 받아 적기 · 개인 비서. claude 는 가짜 함수(inbox.classifier)로 바꾼다."""
+"""tests/test_inbox.py — DESIGN §51 받아 적기 · 개인 비서, §52 고치기 · 비서의 말. claude 는 가짜 함수(inbox.classifier)로 바꾼다."""
 import json
 import os
 import sys
@@ -62,6 +62,27 @@ class PureTest(unittest.TestCase):
         self.assertIn("[글]\n레니쇼 발주함", p)
         for w in ("done", "same", "note", "날짜를 지어내지 않는다", "하라고 하심"):
             self.assertIn(w, p)
+        # §52: 고치기 · 묶어 말하기 · 기한의 범위 · 비서의 말 · 최근 대화
+        for w in ("update", "묶어 말하기", "낼 끝을 내자", "\"reply\"", "질문 하나", "[최근에 적은 글과 네가 한 말]", "(없음)\n\n[출력]"):
+            self.assertIn(w, p)
+        p = inbox.prompt("발표 12/3", TODAY, [], [("학회 KTX 숙소", "학회 발표가 며칠이에요?")])
+        self.assertIn("- 적은 글: 학회 KTX 숙소\n  네가 한 말: 학회 발표가 며칠이에요?", p)
+
+    def test_normalize_update_and_reply(self):
+        items = inbox.normalize({"items": [
+            {"type": "update", "ref": "p11", "day": "2026-11-16"},           # 제목 없는 고치기는 그대로
+            {"type": "update", "ref": "t3", "doing": True},
+            {"type": "update", "ref": None, "title": "새 일"},                # 가리킬 것이 없으면 새 할 일
+            {"type": "update", "ref": None},                                 # 아무것도 없으면 버림
+        ]})
+        self.assertEqual([(i["type"], i["ref"], i["day"], i["doing"]) for i in items],
+                         [("update", "p11", "2026-11-16", False), ("update", "t3", None, True), ("task", "", None, False)])
+        self.assertEqual(inbox.reply_of({"reply": "  내일까지로\n 당겼어요. "}), "내일까지로 당겼어요.")
+        self.assertEqual(inbox.reply_of({"reply": 3}), "")
+        self.assertEqual(inbox.reply_of(None), "")
+        self.assertEqual(inbox.parse_result('[{"act": "add"}]'), ([{"act": "add"}], ""), "§51 의 목록 모양 행")
+        self.assertEqual(inbox.parse_result('{"items": [], "reply": "네"}'), ([], "네"))
+        self.assertEqual(inbox.parse_result("깨짐"), ([], ""))
 
 
 class InboxTest(unittest.TestCase):
@@ -73,9 +94,11 @@ class InboxTest(unittest.TestCase):
         plans.ASYNC = False
         self.answer = {}
         self.seen_ctx = []
+        self.seen_hist = []
 
-        def fake(text, today, ctx):
+        def fake(text, today, ctx, hist=None):
             self.seen_ctx.append(ctx)
+            self.seen_hist.append(hist)
             a = self.answer.get(text)
             if isinstance(a, Exception):
                 raise a
@@ -91,8 +114,8 @@ class InboxTest(unittest.TestCase):
         self.conn.close()
 
     # 돕는 것
-    def put(self, text, items, day=TODAY):
-        self.answer[text] = {"items": items} if items is not None else None
+    def put(self, text, items, day=TODAY, reply=None):
+        self.answer[text] = {"items": items, "reply": reply} if items is not None else None
         return server.api_inbox_add(self.conn, {}, {"text": text, "day": day})
 
     def todos(self, date=TODAY):
@@ -217,7 +240,8 @@ class InboxTest(unittest.TestCase):
         self.assertEqual([x["text"] for x in self.recent()], ["b"])
         self.conn.execute("UPDATE inbox SET updated_ts=?", (time.time() - inbox.SHOW_SEC - 5,))
         self.conn.commit()
-        self.assertEqual(self.recent(), [], "10분이 지나면 화면에서 내려간다")
+        self.assertEqual(self.recent(), [], "하루가 지나면 화면에서 내려간다(§52.3)")
+        self.assertGreaterEqual(inbox.SHOW_SEC, 12 * 3600, "확인을 누를 때까지 남는다 — 10분은 너무 짧았다")
 
     def test_lookup_runs_after_commit(self):
         self.put("정밀공학회 2027 춘계 초록", [T("deadline", "정밀공학회 2027 춘계 초록 마감", needs_lookup=True, lookup_query="2027 한국정밀공학회 춘계 초록 마감")])
@@ -270,6 +294,95 @@ class InboxTest(unittest.TestCase):
         self.assertEqual([x["text"] for x in self.todos()], ["레니쇼 발주"])
         self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM inbox").fetchone()[0], 0)
         self.assertFalse(server.api_inbox_get(self.conn, {}, None)["claude"])
+
+    # §52 고치기 · 기한 · 비서의 말 · 이어지는 대화
+    def test_update_plan_day_and_undo(self):
+        eid = server.api_events_add(self.conn, {}, {"text": "학회 KTX 및 숙소 예약", "day": "2026-11-05"})["id"]
+        say = "11/5 로 밀려 있던 KTX·숙소 예약을 내일까지로 당겼어요. 학회 발표가 며칠이에요?"
+        self.put("내일까진 정말 호텔예약해야함", [T("update", "", ref="p%d" % eid, day="2026-11-16")], reply=say)
+        self.assertIn("p%d 학회 KTX 및 숙소 예약 · 할 일 11/5(목) · 10일 지남" % eid, "\n".join(self.seen_ctx[-1]), "밀린 것을 비서가 안다")
+        row = self.conn.execute("SELECT * FROM plans WHERE id=?", (eid,)).fetchone()
+        self.assertEqual((row["day"], row["confidence"], row["done"]), ("2026-11-16", "confirmed", 0))
+        self.assertEqual(server.api_events_get(self.conn, {"date": [TODAY]}, None)["items"][0]["title"], "학회 KTX 및 숙소 예약", "새 줄을 만들지 않는다")
+        rec = self.recent()[0]
+        self.assertEqual(rec["reply"], say)
+        self.assertEqual([x["label"] for x in rec["result"]], ["고침 · 11/16(월)"])
+        self.assertNotIn("prev", json.dumps(rec, ensure_ascii=False))
+        server.api_inbox_undo(self.conn, {}, {"id": rec["id"]})
+        row = self.conn.execute("SELECT * FROM plans WHERE id=?", (eid,)).fetchone()
+        self.assertEqual(row["day"], "2026-11-05", "되돌리면 원래 날로")
+
+    def test_update_todo_due_doing_and_undo(self):
+        tid = self.todo("레니쇼 리니어스케일 발주", day="2026-11-01")
+        t2 = self.todo("공구함 정리")
+        server.api_todos_update(self.conn, {}, {"id": t2, "someday": 1})
+        self.put("발주 넣을 거 다 낼 끝내자, 공구함은 지금 하는 중",
+                 [T("update", "", ref="t%d" % tid, day="2026-11-16"), T("update", "", ref="t%d" % t2, doing=True)])
+        tds = dict((x["text"], x) for x in self.todos())
+        self.assertEqual(len(tds), 2, "새 할 일을 만들지 않는다")
+        self.assertEqual(tds["레니쇼 리니어스케일 발주"]["due"], "2026-11-16")
+        self.assertEqual((tds["공구함 정리"]["doing"], tds["공구함 정리"]["someday"]), (1, 0), "하는 중이면 '나중에' 가 아니다")
+        rec = self.recent()[0]
+        self.assertEqual([x["label"] for x in rec["result"]], ["고침 · 11/16(월)까지", "고침 · 하는 중"])
+        self.put("아무거나", [T("task", "x")])
+        self.assertIn("t%d 레니쇼 리니어스케일 발주 · 할 일 · 11/16(월)까지" % tid, "\n".join(self.seen_ctx[-1]), "기한을 비서가 안다")
+        server.api_inbox_undo(self.conn, {}, {"id": rec["id"]})
+        tds = dict((x["text"], x) for x in self.todos())
+        self.assertIsNone(tds["레니쇼 리니어스케일 발주"]["due"])
+        self.assertEqual((tds["공구함 정리"]["doing"], tds["공구함 정리"]["someday"]), (0, 1), "되돌리면 대기 · 나중에로")
+
+    def test_update_keep_text_and_retitle_todo(self):
+        kid = server.api_keeps_add(self.conn, {}, {"text": "학회 발표날 나옴"})["id"]
+        tid = self.todo("정방 견적")
+        self.put("발표 12/3, 정방은 구멍 많이", [T("update", "학회 발표 12/3(목)", ref="k%d" % kid),
+                                             T("update", "정방 견적 — 구멍 많이 뚫어서", ref="t%d" % tid)])
+        self.assertEqual(inbox.keeps(self.conn)[0]["text"], "학회 발표 12/3(목)")
+        self.assertEqual(self.todos()[0]["text"], "정방 견적 — 구멍 많이 뚫어서")
+        self.assertEqual([x["label"] for x in self.recent()[0]["result"]], ["고침", "고침"])
+        server.api_inbox_undo(self.conn, {}, {"id": self.recent()[0]["id"]})
+        self.assertEqual(inbox.keeps(self.conn)[0]["text"], "학회 발표날 나옴")
+        self.assertEqual(self.todos()[0]["text"], "정방 견적")
+
+    def test_update_without_news_is_same_and_weekly_day_kept(self):
+        eid = server.api_events_add(self.conn, {}, {"text": "토플 수업", "day": "2026-11-08"})["id"]
+        self.conn.execute("UPDATE plans SET repeat='weekly' WHERE id=?", (eid,))
+        self.conn.commit()
+        tid = self.todo("NX 설계")
+        self.put("토플 수업 금요일로, NX 설계", [T("update", "", ref="p%d" % eid, day="2026-11-20"), T("update", "", ref="t%d" % tid)])
+        self.assertEqual(self.conn.execute("SELECT day FROM plans WHERE id=?", (eid,)).fetchone()[0], "2026-11-08", "매주 일정의 기준일은 고치지 않는다")
+        self.assertEqual([x["label"] for x in self.recent()[0]["result"]], ["이미 있음", "이미 있음"])
+
+    def test_update_closed_ref_becomes_new_task(self):
+        tid = self.todo("NX 설계")
+        server.api_todos_update(self.conn, {}, {"id": tid, "done": 1})
+        self.put("NX 도면 수정", [T("update", "NX 도면 수정", ref="t%d" % tid)])
+        self.assertEqual([x["text"] for x in self.todos() if not x["done"]], ["NX 도면 수정"], "끝난 줄을 가리키면 새 할 일로 — 글은 잃지 않는다")
+
+    def test_history_goes_to_claude_and_old_rows_read(self):
+        now = time.time()
+        self.conn.execute("INSERT INTO inbox(text, day, status, result, created_ts, updated_ts) VALUES(?,?,?,?,?,?)",
+                          ("옛 모양", TODAY, "done", '[{"act": "add", "ref": "t9", "type": "task", "title": "옛 모양"}]', now, now))
+        self.conn.execute("INSERT INTO inbox(text, day, status, result, created_ts, updated_ts) VALUES(?,?,?,?,?,?)",
+                          ("어제보다 전", TODAY, "done", '{"items": [], "reply": "오래된 말"}', now - inbox.HIST_SEC - 60, now))
+        self.conn.commit()
+        old = [x for x in self.recent() if x["text"] == "옛 모양"][0]
+        self.assertEqual((old["reply"], old["result"][0]["label"]), ("", "할 일"), "§51 의 목록 모양 행도 읽는다")
+        self.put("학회 KTX 숙소", [T("task", "x")], reply="학회 발표가 며칠이에요?")
+        self.put("12/3 이야", [T("task", "y")])
+        self.assertEqual(self.seen_hist[-1], [("옛 모양", ""), ("학회 KTX 숙소", "학회 발표가 며칠이에요?")],
+                         "최근 하루 동안 적은 글과 그때 한 말 — 오래된 것은 빼고, 이번 글도 빼고")
+
+    def test_todo_due_api(self):
+        tid = self.todo("발주")
+        server.api_todos_update(self.conn, {}, {"id": tid, "due": "2026-11-20"})
+        self.assertEqual(self.todos()[0]["due"], "2026-11-20")
+        with self.assertRaises(server.ApiError):
+            server.api_todos_update(self.conn, {}, {"id": tid, "due": "11/20"})
+        server.api_todos_update(self.conn, {}, {"id": tid, "due": None})
+        self.assertIsNone(self.todos()[0]["due"], "기한 빼기")
+        server.api_todos_update(self.conn, {}, {"id": tid, "due": "2026-11-20"})
+        server.api_todos_delete(self.conn, {}, {"id": tid})
+        self.assertIsNone(self.conn.execute("SELECT 1 FROM todo_due").fetchone(), "할 일을 지우면 기한도")
 
     def test_empty_text_rejected_and_lines_kept(self):
         with self.assertRaises(server.ApiError):

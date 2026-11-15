@@ -842,7 +842,7 @@
   // 할 일 줄: 동그라미(완료) + 제목 + 한 줄. 누르면 펼쳐져 설명과 동작이 나온다. 데이터·API 는 넓은 화면의 renderTasks 와 같다
   function phRow(key, title, meta, done, onCheck, fill) {
     var tag = meta && meta[2];                                    // §40 오른쪽 열: D-3 · 오늘 · 2일 지남 — 색은 여기에만
-    var li = h('li', { class: 'ph-row' + (done ? ' done' : '') + (meta && meta[1] === 'doing' ? ' doing' : '') + (state.phOpen === key ? ' open' : '') });
+    var li = h('li', { class: 'ph-row' + (done ? ' done' : '') + (meta && (meta[1] === 'doing' || meta[3]) ? ' doing' : '') + (state.phOpen === key ? ' open' : '') });
     li.appendChild(h('button', { class: 'ph-ck', type: 'button', 'aria-label': done ? '되돌리기' : '끝냄', onclick: function (e) { e.stopPropagation(); onCheck(); } }));
     var b = h('div', { class: 'ph-b' }, [h('div', { class: 'ph-t', text: title })]);
     if (meta && meta[0]) b.appendChild(h('div', { class: 'ph-m ' + (tag ? '' : (meta[1] || '')), text: meta[0] }));
@@ -889,10 +889,13 @@
       if (inp) box.appendChild(inp);
     });
   }
+  function dueDays(day) { return Math.round((parseDate(day) - parseDate(todayStr())) / 86400000); }
   function phTodo(it, carried) {
-    // §51 '하는 중' 은 묶음 이름이 말해 준다 — 줄에는 분야와 적은 날
-    var mt = [it.area, carried ? mdStr(it.day) + ' 에 적음' : ''].filter(Boolean).join(' · ');
-    var meta = it.done ? null : [mt, it.doing ? 'doing' : ''];
+    // §51 '하는 중' 은 묶음 이름이 말해 준다 — 줄에는 분야와 적은 날. §52.2 기한이 있으면 적은 날 대신 기한, 오른쪽 열은 일정과 같은 규칙
+    var due = !it.done && it.due ? dueDays(it.due) : null;
+    var mt = [it.area, due !== null ? mdStr(it.due) + '(' + WEEK[parseDate(it.due).getDay()] + ')까지' : (carried ? mdStr(it.day) + ' 에 적음' : '')].filter(Boolean).join(' · ');
+    var meta = it.done ? null : due === null ? [mt, it.doing ? 'doing' : '']
+      : [mt, due <= 0 ? 'late' : due <= 3 ? 'soon' : '', due < 0 ? (-due) + '일 지남' : due === 0 ? '오늘' : 'D-' + due, !!it.doing];
     return phRow('t' + it.id, it.text, meta, !!it.done, function () {
       var body = { id: it.id, done: it.done ? 0 : 1 };
       if (carried && !it.done) body.day = sideDate();              // §20: 전에 적은 할 일을 끝내면 '그 날 한 일' 로
@@ -903,6 +906,8 @@
         api('/api/todos/update', { id: it.id, doing: it.doing ? 0 : 1 }).then(loadTodos).catch(fail('할 일 갱신 실패')); } }));
       if (!it.done && !it.doing) pills.push(h('button', { class: 'ph-pill', type: 'button', text: it.someday ? '지금 할 일로' : '나중에로', onclick: function () {
         api('/api/todos/update', { id: it.id, someday: it.someday ? 0 : 1 }).then(loadTodos).catch(fail('할 일 갱신 실패')); } }));
+      if (!it.done && it.due) pills.push(h('button', { class: 'ph-pill', type: 'button', text: '기한 빼기', onclick: function () {     // §52.2
+        api('/api/todos/update', { id: it.id, due: null }).then(loadTodos).catch(fail('할 일 갱신 실패')); } }));
       if (!it.done) pills.push(h('button', { class: 'ph-pill', type: 'button', text: '기억으로', onclick: function () {     // §51 잘못 나뉜 것 옮기기
         api('/api/inbox/move', { ref: 't' + it.id, to: 'note' }).then(function () { loadTodos(); loadKeeps(); }).catch(fail('옮기기 실패')); } }));
       pills.push(h('button', { class: 'ph-pill del', type: 'button', text: '삭제', onclick: function () {
@@ -923,7 +928,8 @@
       .concat((t.carried || []).map(function (x) { return [x, true]; }));
     var undRow = function (a) { return phTodo(a[0], a[1]); };
     // §51 내가 적은 할 일(날짜 없음)이 맨 위: 하는 중 → 할 일. '나중에' 표시한 것은 맨 아래로
-    var doingT = und.filter(function (a) { return a[0].doing; }), waitT = und.filter(function (a) { return !a[0].doing && !a[0].someday; });
+    var byDue = function (a, b) { var x = a[0].due || '9999', y = b[0].due || '9999'; return x < y ? -1 : x > y ? 1 : 0; };   // §52.2 기한 가까운 것이 먼저
+    var doingT = und.filter(function (a) { return a[0].doing; }).sort(byDue), waitT = und.filter(function (a) { return !a[0].doing && !a[0].someday; }).sort(byDue);
     var someT = und.filter(function (a) { return !a[0].doing && a[0].someday; });
     var ib = (state.inbox && state.inbox.items) || [];
     var doneT = (t.today || []).filter(function (x) { return x.done; }), doneP = plans.filter(function (x) { return x.done; });
@@ -973,6 +979,7 @@
     if (busy) b.appendChild(h('div', { class: 'ph-m', text: '나누는 중…' }));
     else {
       if (x.status === 'failed') b.appendChild(h('div', { class: 'ph-m soon', text: '나누지 못해 그대로 할 일로 넣었습니다' }));
+      if (x.reply) b.appendChild(h('div', { class: 'ib-reply', text: x.reply }));       // §52.3 비서의 말 — 무엇을 고쳤는지 · 묻는 것
       b.appendChild(h('ul', { class: 'ib-res' }, (x.result || []).map(function (r) {
         return h('li', null, [h('span', { class: 'k', text: r.label || '' }), h('span', { text: r.title || '' })]);
       })));
@@ -3507,6 +3514,7 @@
         if (body.done !== undefined) { t.done = body.done ? 1 : 0; t.done_ts = body.done ? Date.now() / 1000 : null; if (t.done) t.doing = 0; }
         if (body.doing !== undefined) t.doing = (body.doing && !t.done) ? 1 : 0;
         if (body.someday !== undefined) t.someday = body.someday ? 1 : 0;
+        if (body.due !== undefined) t.due = body.due || null;
         if (body.text !== undefined) t.text = body.text;
         if (body.day !== undefined) t.day = body.day;
       });
@@ -3578,7 +3586,14 @@
   // §51 목업 받아 적기: 쉼표 · 줄바꿈으로 나누고, 날짜 낱말이면 마감, '기억'·번호면 기억, '끝'·'했음' 이면 같은 글자의 할 일을 끝낸다
   function mockInboxSplit(db, ix, day) {
     var parts = String(ix.text).split(/[\n,]+/).map(function (x) { return x.trim(); }).filter(Boolean);
+    var fixed = [];
     ix.result = parts.map(function (t) {
+      // §52 이미 있는 할 일 + '내일' → 그 줄의 기한을 고친다
+      var same = db.todos.filter(function (x) { return !x.done && t.indexOf(x.text.slice(0, 4)) >= 0; })[0];
+      if (same && /내일|낼/.test(t) && !/끝|했음|보냄/.test(t)) {
+        same.due = shiftDate(db.today, 1); fixed.push(same.text);
+        return { act: 'update', ref: 't' + same.id, type: 'task', title: same.text, label: '고침 · ' + mdStr(same.due) + '(' + WEEK[parseDate(same.due).getDay()] + ')까지' };
+      }
       if (/끝|했음|보냄/.test(t)) {
         var hit = db.todos.filter(function (x) { return !x.done && t.indexOf(x.text.slice(0, 4)) >= 0; })[0];
         if (hit) { hit.done = 1; hit.doing = 0; hit.done_ts = Date.now() / 1000; return { act: 'done', ref: 't' + hit.id, type: 'task', title: hit.text, label: '끝냄' }; }
@@ -3594,6 +3609,8 @@
       var nt = { id: ++db.seq, text: t, day: day, done: 0, doing: 0, area: '연구', someday: /언젠가|나중에/.test(t) ? 1 : 0, created_ts: Date.now() / 1000, done_ts: null };
       db.todos.push(nt); return { act: 'add', ref: 't' + nt.id, type: 'task', title: t, label: '할 일' };
     });
+    ix.reply = fixed.length ? '‘' + fixed[0] + '’ 은 이미 있어서 내일까지로 고쳐 뒀어요.' + (parts.length > 1 ? ' 나머지는 나눠 넣었어요.' : '')
+      : parts.length + '가지로 나눠 넣었어요.';
     ix.status = 'done';
   }
   function mockWindow(d) {
