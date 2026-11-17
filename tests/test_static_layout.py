@@ -614,6 +614,21 @@ class StaticLayoutTest(unittest.TestCase):
         # 손가락: 한 번은 가운데에, 같은 구간을 한 번 더 누르면 분류
         hov = self.js[self.js.index("function initOrbitHover()"):self.js.index("// ------------------------------------------------------------ §50 작은 궤도 줄")]
         self.assertIn("oz.ptype !== 'mouse' && !(state.obSel && state.obSel.r === sel.r && state.obSel.i === sel.i)", hov)
+        # 궤도 쪽으로만: 휠 · 두 손가락의 중심은 고리 위로, 확대한 동안 고리가 늘 화면 안에
+        self.assertIn("p = ozOnRing(ozAt(fr, oz.tk, oz.tcx, oz.tcy));", self.js)
+        self.assertIn("p: ozOnRing(ozAt(ozFrac(mid[0], mid[1]), oz.k, oz.cx, oz.cy))", self.js)
+        cl = self.js[self.js.index("function ozClamp(k, cx, cy) {"):self.js.index("function ozOnRing(p)")]
+        self.assertIn("half = Math.min(oz.W, oz.H) / k / 2 * 0.8", cl)
+        self.assertIn("lo = Math.max(0, b[0] - half), hi = b[1] + half", cl, "가운데 빈 곳도 원 바깥도 안 된다")
+
+    def test_one_off_events_in_list_56(self):
+        """§56 한 번뿐인 일정(예비군 같은 것)은 이레 안이면 할 일 목록에도 — 매주 일정은 일정 칸에만."""
+        self.assertIsNotNone(re.search(r"^##\s*56\.", self.design, re.M), "DESIGN.md 에 §56 이 없다")
+        lp = self.js[self.js.index("function listPlans()"):self.js.index("function renderTasksPhone()")]
+        self.assertIn("var oneOff = function (x) { return x.kind === 'event' && !x.repeat && !x.done && x.occ && x.d >= 0 && x.d <= 7; };", lp)
+        self.assertIn("return x.kind !== 'event' || oneOff(x);", lp)
+        self.assertEqual(self.js.count("var plans = listPlans();"), 2, "폰 목록 · 옛 넓은 목록이 같은 규칙")
+        self.assertNotIn("filter(function (x) { return x.kind !== 'event'; })", self.js)
 
     def test_inbox_design_51(self):
         """§51 받아 적기 · 개인 비서 — 내가 적은 할 일이 맨 위, 적은 글은 claude 가 나누고 결과를 되돌릴 수 있다."""

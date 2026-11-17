@@ -892,10 +892,35 @@
     svg.style.setProperty('--u', (1 / (k * Math.min(oz.s0, 1))).toFixed(4));
     if (box.classList.contains('zoomed') !== zoomed) { box.classList.toggle('zoomed', zoomed); $('oz-all').hidden = !zoomed; }
   }
-  function ozClamp(k, cx, cy) {                                 // 원(600 정사각형) 밖으로는 옮기지 않는다
-    k = Math.min(OZ_MAX, Math.max(1, k));
+  function ozSquare(k, cx, cy) {                                // 원(600 정사각형) 밖으로는 옮기지 않는다
     var vw = oz.W / k, vh = oz.H / k;
     return { k: k, cx: vw >= 600 ? 300 : Math.min(600 - vw / 2, Math.max(vw / 2, cx)), cy: vh >= 600 ? 300 : Math.min(600 - vh / 2, Math.max(vh / 2, cy)) };
+  }
+  function ringBand() {                                         // 고리가 차지하는 반지름 [안, 밖] — 하루는 고리 하나, 주는 안쪽(일) ~ 바깥(월)
+    var lo = 1e9, hi = 0;
+    orb.rings.forEach(function (rg) { lo = Math.min(lo, rg.r - rg.band / 2); hi = Math.max(hi, rg.r + rg.band / 2); });
+    return orb.rings.length ? [lo, hi] : [0, 300];
+  }
+  // §55.5 궤도 쪽으로만: 확대한 동안 화면 가운데에서 화면 반쪽의 80% 안에 늘 고리가 있다 — 가운데 빈 곳 · 원 바깥만 보이는 일이 없다
+  function ozClamp(k, cx, cy) {
+    k = Math.min(OZ_MAX, Math.max(1, k));
+    var t = ozSquare(k, cx, cy);
+    if (k <= 1.0001 || !orb.rings.length) return t;
+    var b = ringBand(), half = Math.min(oz.W, oz.H) / k / 2 * 0.8;
+    var dx = t.cx - 300, dy = t.cy - 300, d = Math.sqrt(dx * dx + dy * dy), lo = Math.max(0, b[0] - half), hi = b[1] + half;
+    if (d >= lo && d <= hi) return t;
+    if (d < 1e-6) { dx = 0; dy = -1; d = 1; }                   // 한가운데면 맨 위(0시) 쪽으로
+    var nd = Math.min(hi, Math.max(lo, d));
+    return ozSquare(k, 300 + dx / d * nd, 300 + dy / d * nd);
+  }
+  // 휠 · 두 손가락의 중심을 궤도 위로: 가운데(빈 곳)나 원 밖이면 그 방향의 가장 가까운 고리 점
+  function ozOnRing(p) {
+    if (!orb.rings.length) return p;
+    var b = ringBand(), dx = p[0] - 300, dy = p[1] - 300, d = Math.sqrt(dx * dx + dy * dy);
+    if (d >= b[0] && d <= b[1]) return p;
+    if (d < 1e-6) { dx = oz.cx - 300; dy = oz.cy - 300; d = Math.sqrt(dx * dx + dy * dy); if (d < 1e-6) { dx = 0; dy = -1; d = 1; } }
+    var nd = Math.min(b[1], Math.max(b[0], d));
+    return [300 + dx / d * nd, 300 + dy / d * nd];
   }
   // 배율 k · 가운데(cx, cy)로. instant 가 아니면 부드럽게(60분의 1초마다 30% 씩) 따라간다
   function ozGo(k, cx, cy, instant) {
@@ -935,7 +960,7 @@
     if (!dy) return;
     if (!isSplit() && oz.tk <= 1.001 && (dy > 0 || window.scrollY > 2)) return;   // 한 장(폰 · 좁은 창): 전체일 때 아래로 굴리면 · 내려가 있으면 페이지가 움직인다
     e.preventDefault();
-    var fr = ozFrac(e.clientX, e.clientY), p = ozAt(fr, oz.tk, oz.tcx, oz.tcy);
+    var fr = ozFrac(e.clientX, e.clientY), p = ozOnRing(ozAt(fr, oz.tk, oz.tcx, oz.tcy));     // 궤도 쪽으로만
     var nk = Math.min(OZ_MAX, Math.max(1, oz.tk * Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.0022)))), c = ozKeep(p, fr, nk);
     ozGo(nk, c[0], c[1]);
   }
@@ -948,7 +973,7 @@
     var ids = Object.keys(oz.pts);
     if (ids.length === 2) {
       var a = oz.pts[ids[0]], b = oz.pts[ids[1]], mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-      oz.pinch = { d0: Math.max(10, Math.hypot(a[0] - b[0], a[1] - b[1])), k0: oz.k, p: ozAt(ozFrac(mid[0], mid[1]), oz.k, oz.cx, oz.cy) };
+      oz.pinch = { d0: Math.max(10, Math.hypot(a[0] - b[0], a[1] - b[1])), k0: oz.k, p: ozOnRing(ozAt(ozFrac(mid[0], mid[1]), oz.k, oz.cx, oz.cy)) };
       oz.drag = null;
       return;
     }
@@ -1218,12 +1243,18 @@
       box.appendChild(h('div', { class: 'ph-pills' }, pills));
     });
   }
+  // 할 일 칸 목록에 오는 일정 · 마감: 일정(kind event)은 일정 칸에 — 다만 한 번뿐인 일정(예비군 · 발표 같은 것)은 오늘 ~ 이레 안이면 목록에도(§56).
+  // 매주 일정(수업)은 일정 칸에만, 지난 일정 · 끝낸 일정은 목록에 없다
+  function listPlans() {
+    var oneOff = function (x) { return x.kind === 'event' && !x.repeat && !x.done && x.occ && x.d >= 0 && x.d <= 7; };
+    return ((state.events && state.events.items) || []).filter(function (x) { return x.kind !== 'event' || oneOff(x); });
+  }
   function renderTasksPhone() {
     var box = $('ph-todo-list');
     if (!box) return;
     clear(box);
     var t = state.todos || { today: [], carried: [] };
-    var plans = ((state.events && state.events.items) || []).filter(function (x) { return x.kind !== 'event'; });
+    var plans = listPlans();
     var open = plans.filter(function (x) { return !x.done; });
     var late = open.filter(function (x) { return x.occ && x.d <= 0; }), ask = open.filter(function (x) { return !x.occ; });
     var week = open.filter(function (x) { return x.occ && x.d > 0 && x.d <= 7; }), later = open.filter(function (x) { return x.occ && x.d > 7; });
@@ -2307,7 +2338,7 @@
     var ul = $('todo-list');
     clear(ul);
     var t = state.todos || { today: [], carried: [] };
-    var plans = ((state.events && state.events.items) || []).filter(function (x) { return x.kind !== 'event'; });
+    var plans = listPlans();
     var open = plans.filter(function (x) { return !x.done; });
     var groups = [
       ['날짜 없음', (t.today || []).filter(function (x) { return !x.done; }).map(function (x) { return todoRow(x, false); })    // §51 내가 적은 할 일이 맨 위
@@ -3735,5 +3766,5 @@
 
   // 디버그용 노출
   window.MAENG = { state: state, api: api, loadDay: loadDay, loadStatus: loadStatus, renderTimeline: renderTimeline, openPopover: openPopover, closePopover: closePopover,
-    setView: setView, loadRange: loadRange, renderOrbit: renderOrbit, oz: oz, ozGo: ozGo, ozReset: ozReset };
+    setView: setView, loadRange: loadRange, renderOrbit: renderOrbit, renderTasks: renderTasks, oz: oz, ozGo: ozGo, ozReset: ozReset };
 })();
