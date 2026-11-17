@@ -1696,6 +1696,7 @@ class Raw(object):
 
 DRAWER_DIR = None                 # 테스트가 임시 폴더로 바꾼다. None 이면 data_dir(CFG)\drawer
 DRAWER_MAX = 8 * 1024 * 1024      # 파일 상한
+DRAWER_OUT_DIR = None             # §54 끌어 낼 사본. 테스트가 임시 폴더로 바꾼다. None 이면 data_dir(CFG)\drawer_out
 DRAWER_TEXT_MAX = 4000
 DRAWER_LABEL_MAX = 100
 _DRAWER_MIME = {
@@ -1734,6 +1735,11 @@ def _drawer_find(conn, did):
     if row is None:
         raise ApiError(404, "없는 서랍 항목 id=%d" % did)
     return row
+
+
+def _drawer_out_dir(did):
+    """§54 원래 이름의 끌기 사본을 두는 곳 — 항목마다 한 폴더."""
+    return os.path.join(DRAWER_OUT_DIR or os.path.join(common.data_dir(CFG), "drawer_out"), str(int(did)))
 
 
 def _drawer_path(row):
@@ -1837,6 +1843,7 @@ def api_drawer_delete(conn, query, body):
             os.remove(p)
         except OSError:
             pass
+    shutil.rmtree(_drawer_out_dir(did), ignore_errors=True)     # §54 끌기 사본도
     return {"ok": True}
 
 
@@ -1872,6 +1879,26 @@ def api_drawer_reveal(conn, query, body):
     return {"ok": True}
 
 
+def api_drawer_drag(conn, query, body):
+    """§54 서랍 파일을 진짜 파일로 끌어 낸다 — 화면이 '끌기 시작' 을 알리면 이 PC 에서 윈도 끌기를 대신 시작한다.
+    크롬만으로는 탐색기 · 바탕화면에만 놓인다(DESIGN §54.1). 끄는 것은 원래 이름의 사본."""
+    did = _int(body, "id")
+    row = _drawer_find(conn, did)
+    p = _drawer_path(row)
+    if not p or not os.path.isfile(p):
+        raise ApiError(404, "파일이 없습니다")
+    if os.name != "nt":
+        raise ApiError(501, "Windows 에서만 됩니다")
+    import dragout
+    name = _drawer_safe_name(row["value"] or os.path.basename(p))
+    try:
+        src = dragout.export_copy(p, _drawer_out_dir(did), name)
+    except OSError as e:
+        raise ApiError(500, "끌어 낼 사본을 못 만들었습니다: %s" % e)
+    r = dragout.start(src)
+    return {"ok": True, "started": bool(r.get("started")), "why": r.get("why") or ""}
+
+
 # ------------------------------------------------------------------ 다른 기기에서 쓰기 (§36): 로그인 · 이 PC 밖 요청 가르기 · 테일넷
 # Athenaeum(2026-11-06) 과 같은 구조. 서버는 127.0.0.1 에만 묶여 있고 다른 기기는 tailscale serve 가 넘겨 주는 요청으로 들어온다.
 # 이 PC 안의 요청은 그대로 통과, 밖의 요청은 「다른 기기에서 열기」 가 켜져 있고 로그인한 기기만. 꺼져 있으면 모두 거절(닫힌 쪽이 기본).
@@ -1892,7 +1919,7 @@ _FWD_HEADERS = ("X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto", "For
 _OPEN_PATHS = {"/login", "/api/login"}
 _OPEN_STATIC = {"manifest.json", "favicon.svg", "horarium.ico", "icon-180.png", "icon-192.png", "icon-512.png",
                 "logo-mark.svg", "logo-mark-clock.svg", "PretendardVariable.woff2"}      # 로그인 화면·홈 화면 아이콘의 재료
-_LOCAL_ONLY_POST = {"/api/devices", "/api/restart", "/api/drawer/reveal"}
+_LOCAL_ONLY_POST = {"/api/devices", "/api/restart", "/api/drawer/reveal", "/api/drawer/drag"}
 
 
 def _devices_path():
@@ -2365,6 +2392,7 @@ ROUTES = {
     ("POST", "/api/drawer/update"): api_drawer_update,
     ("POST", "/api/drawer/delete"): api_drawer_delete,
     ("POST", "/api/drawer/reveal"): api_drawer_reveal,
+    ("POST", "/api/drawer/drag"): api_drawer_drag,
     ("GET", "/api/devices"): api_devices_get,
     ("POST", "/api/devices"): api_devices_post,
     ("POST", "/api/restart"): api_restart,

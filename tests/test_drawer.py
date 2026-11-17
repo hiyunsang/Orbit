@@ -178,8 +178,69 @@ class DrawerApiTest(unittest.TestCase):
 
     def test_routes_registered(self):
         for m, p in (("GET", "/api/drawer"), ("GET", "/api/drawer/file"), ("POST", "/api/drawer"),
-                     ("POST", "/api/drawer/update"), ("POST", "/api/drawer/delete"), ("POST", "/api/drawer/reveal")):
+                     ("POST", "/api/drawer/update"), ("POST", "/api/drawer/delete"), ("POST", "/api/drawer/reveal"),
+                     ("POST", "/api/drawer/drag")):
             self.assertIn((m, p), server.ROUTES, "%s %s 가 ROUTES 에 없다" % (m, p))
+        self.assertIn("/api/drawer/drag", server._LOCAL_ONLY_POST, "§54 끌기는 이 PC 에서만")
+
+    # --- §54 끌어 내기
+    def test_drag_precheck(self):
+        import dragout
+        self.assertEqual(dragout.precheck(u"(2) Orbit · 출근기록", True, False), (True, ""))
+        self.assertEqual(dragout.precheck(u"Orbit · 출근기록 - Chrome", True, False), (True, ""), "탭으로 연 Orbit 도")
+        self.assertEqual(dragout.precheck(u"(2) Orbit · 출근기록", True, True), (False, "busy"), "한 번에 하나")
+        self.assertEqual(dragout.precheck(u"카카오톡", True, False), (False, "not-orbit"), "맨 앞 창이 Orbit 이 아니면 안 함")
+        self.assertEqual(dragout.precheck(None, True, False), (False, "not-orbit"))
+        self.assertEqual(dragout.precheck(u"(2) Orbit · 출근기록", False, False), (False, "button-up"), "단추를 뗐으면 안 함")
+
+    def test_export_copy_keeps_name_and_refreshes(self):
+        import dragout
+        src = os.path.join(self.tmp, u"1_사업자등록증.pdf")
+        with open(src, "wb") as f:
+            f.write(b"%PDF-1 a")
+        out = os.path.join(self.tmp, "out", "1")
+        dst = dragout.export_copy(src, out, u"사업자등록증.pdf")
+        self.assertEqual(dst, os.path.join(out, u"사업자등록증.pdf"))
+        with open(dst, "rb") as f:
+            self.assertEqual(f.read(), b"%PDF-1 a")
+        mt = os.stat(dst).st_mtime
+        dragout.export_copy(src, out, u"사업자등록증.pdf")
+        self.assertEqual(os.stat(dst).st_mtime, mt, "같으면 다시 쓰지 않는다")
+        with open(src, "wb") as f:
+            f.write(b"%PDF-1 bb")
+        os.utime(src, (mt + 10, mt + 10))
+        dragout.export_copy(src, out, u"사업자등록증.pdf")
+        with open(dst, "rb") as f:
+            self.assertEqual(f.read(), b"%PDF-1 bb", "원본이 바뀌면 사본도")
+        dragout.export_copy(src, out, u"새 이름.pdf")
+        self.assertEqual(os.listdir(out), [u"새 이름.pdf"], "이름이 바뀌면 옛 사본은 지운다")
+
+    def test_drag_api_uses_original_name_copy(self):
+        import dragout
+        out = tempfile.mkdtemp(prefix="horarium_drawer_out_")
+        old = (server.DRAWER_OUT_DIR, dragout.start)
+        calls = []
+        server.DRAWER_OUT_DIR = out
+        dragout.start = lambda p, wait=0.6: calls.append(p) or {"started": True, "why": ""}
+        try:
+            fid = self.add_file(u"사업자등록증.pdf", raw=b"%PDF-1.4 x")
+            if os.name != "nt":
+                self.assertApiError(501, server.api_drawer_drag, self.conn, {}, {"id": fid})
+                return
+            r = server.api_drawer_drag(self.conn, {}, {"id": fid})
+            self.assertEqual((r["started"], r["why"]), (True, ""))
+            self.assertEqual(os.path.basename(calls[0]), u"사업자등록증.pdf", "서랍 안 이름(id_)이 아니라 원래 이름으로 끈다")
+            with open(calls[0], "rb") as f:
+                self.assertEqual(f.read(), b"%PDF-1.4 x")
+            self.assertEqual(len(self.files()), 1, "서랍 폴더에는 사본을 두지 않는다")
+            tid = self.add_text(u"123-45-67890")
+            self.assertApiError(404, server.api_drawer_drag, self.conn, {}, {"id": tid})
+            self.assertApiError(404, server.api_drawer_drag, self.conn, {}, {"id": 999})
+            server.api_drawer_delete(self.conn, {}, {"id": fid})
+            self.assertFalse(os.path.exists(os.path.dirname(calls[0])), "서랍에서 지우면 끌기 사본도")
+        finally:
+            server.DRAWER_OUT_DIR, dragout.start = old
+            shutil.rmtree(out, ignore_errors=True)
 
 
 if __name__ == "__main__":

@@ -473,7 +473,7 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
 .drawer-add .btn-row { align-items: center; margin-top: 0; }
 .drawer-add #drawer-file-name { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .drawer-add #drawer-file-name:empty { display: none; }
-.drawer-row { cursor: pointer; }
+.drawer-row { cursor: pointer; -webkit-user-select: none; user-select: none; }   /* §54 끌기 — 글자 고르기 대신 줄이 끌린다 */
 .drawer-row .drawer-k { flex: 0 0 auto; max-width: 38%; background: none; border: 0; padding: 0; font: inherit; font-size: 12px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; text-align: left; }
 .drawer-row .drawer-k:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 .drawer-row .drawer-v { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: var(--s2); overflow: hidden; }
@@ -495,7 +495,7 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
 .dev-url { color: var(--accent); cursor: pointer; font-variant-numeric: tabular-nums; }
 .dev-url:hover { text-decoration: underline; text-underline-offset: 3px; }
 .dev-sess { display: block; color: var(--text-2); }
-.is-remote #link-restart, .is-remote .drawer-reveal { display: none; }
+.is-remote #link-restart { display: none; }
 /* §36.5 터치 기기: 16px 미만 입력은 iOS Safari 가 누를 때마다 확대한다 → 16px. 행의 단추는 손가락 크기로 */
 @media (hover: none) and (pointer: coarse) {
   input[type="text"], input[type="password"], input[type="date"], input[type="search"], textarea, select { font-size: 16px !important; }

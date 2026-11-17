@@ -375,7 +375,7 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertIn("#main.phone-pages > #sidebar { order: 2;", self.css, "§36.5 → §39.2: 폰에서는 화면 머리·히어로 다음에 판")
         self.assertIn("@media (hover: none) and (pointer: coarse)", self.css, "§36.5 터치 기기 16px")
         self.assertNotIn('"unknown pause" "devices devices"', self.css, "§49 넓은 창 격자 영역은 없앴다")
-        self.assertIn(".is-remote #link-restart, .is-remote .drawer-reveal { display: none; }", self.css)
+        self.assertIn(".is-remote #link-restart { display: none; }", self.css)
 
     def test_orbit_design_37(self):
         self.assertIsNotNone(re.search(r"^##\s*37\.", self.design, re.M), "DESIGN.md 에 §37(Orbit) 이 없다")
@@ -637,6 +637,20 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertIn("meta[1] === 'doing' || meta[3]", self.js, "기한 색을 쓰는 줄도 하는 중 표시는 남는다")
         self.assertIn('TYPES = ("task", "deadline", "event", "note", "done", "same", "update")', self.inbox)
         self.assertIn("SHOW_SEC = 24 * 3600", self.inbox)
+
+    def test_drawer_drag_54(self):
+        """§54 서랍은 끌어서 바로 — 글은 글로, 이 PC 의 파일은 서버가 진짜 파일로, 다른 기기는 DownloadURL."""
+        self.assertIsNotNone(re.search(r"^##\s*54\.", self.design, re.M), "DESIGN.md 에 §54 가 없다")
+        self.assertIn("dt.setData('text/plain', it.value)", self.js, "글 줄은 글로 끈다")
+        self.assertIn("dt.setData('DownloadURL'", self.js, "다른 기기: 탐색기 · 바탕화면에 놓으면 내려받기")
+        self.assertIn("api('/api/drawer/drag', { id: it.id })", self.js, "이 PC: 서버가 진짜 파일로 끌기")
+        dd = self.js[self.js.index("function drawerDrag("):self.js.index("function blockFileDrop(")]
+        self.assertIn("e.preventDefault();", dd, "이 PC 에서는 크롬의 끌기를 접는다")
+        self.assertIn("document.addEventListener('drop', blockFileDrop);", self.js, "끌던 파일을 Orbit 에 놓아도 화면이 안 바뀐다")
+        self.assertNotIn("text: '탐색기'", self.js, "탐색기 단추는 뺐다")
+        self.assertIn('("POST", "/api/drawer/drag"): api_drawer_drag', self.server)
+        self.assertIn("p === '/api/drawer/drag'", self.js, "목업")
+        self.assertIn(u"눌러서 복사 · 끌어서 놓기", self.html)
 
     def test_open_page_follows_new_build_53(self):
         """§53 옛 화면이 열려 있으면 적은 글이 옛 길로 간다 — 서버가 판을 알려 주고 화면은 쉬는 때에 새로고침."""

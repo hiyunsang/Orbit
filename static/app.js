@@ -419,7 +419,7 @@
     clear(ul);
     var items = state.drawer || [];
     if (!items.length) {
-      ul.appendChild(h('li', { class: 'empty hint', text: '아직 비었어요 — "넣기"로 사업자번호·주소·사인을 넣어 두면 눌러서 복사합니다.' }));
+      ul.appendChild(h('li', { class: 'empty hint', text: '아직 비었어요 — "넣기"로 사업자번호·주소·사인을 넣어 두면 눌러서 복사하거나 끌어다 놓을 수 있어요.' }));
       return;
     }
     items.forEach(function (it) {
@@ -432,18 +432,54 @@
       ];
       if (it.kind === 'file') {
         kids.push(h('button', { class: 'act', type: 'button', text: '열기', title: '새 탭에서 엽니다', onclick: function (e) { e.stopPropagation(); window.open(it.url, '_blank'); } }));
-        kids.push(h('button', { class: 'act drawer-reveal', type: 'button', text: '탐색기', title: '탐색기에서 이 파일을 선택해 엽니다 (업로드 창에 끌어 넣을 때)', onclick: function (e) {
-          e.stopPropagation(); api('/api/drawer/reveal', { id: it.id }).catch(fail('탐색기 열기 실패'));
-        } }));
       }
       kids.push(h('button', { class: 'act btn-del', type: 'button', title: '삭제', text: '×', onclick: function (e) {
         e.stopPropagation(); api('/api/drawer/delete', { id: it.id }).then(loadDrawer).catch(fail('삭제 실패'));
       } }));
-      var li = h('li', { class: 'list-row drawer-row', title: it.kind === 'text' ? '누르면 복사' : (it.is_image ? '누르면 그림 복사' : '누르면 열기') }, kids);
-      li.addEventListener('click', function () { drawerCopy(it, li); });
+      var li = h('li', { class: 'list-row drawer-row', title: (it.kind === 'text' ? '누르면 복사' : (it.is_image ? '누르면 그림 복사' : '누르면 열기')) + ' · 끌어서 놓기' }, kids);
+      li.addEventListener('click', function () {
+        if (drawerDragged) { drawerDragged = false; return; }       // 끌고 난 뒤의 click 은 복사 · 열기가 아니다
+        drawerCopy(it, li);
+      });
+      drawerDrag(li, it);
       ul.appendChild(li);
     });
   }
+  // §54 서랍 줄을 끌어 바로 쓰기 — 글은 글로, 파일은 진짜 파일로(이 PC 에서는 Orbit 서버가 윈도 끌기를 대신 시작)
+  var drawerDragged = false;
+  function onThisPC() { return !state.remote && /^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname); }
+  function drawerDrag(li, it) {
+    li.draggable = true;
+    Array.prototype.forEach.call(li.querySelectorAll('img'), function (im) { im.draggable = false; });   // 미리보기 그림이 따로 끌리지 않게
+    li.addEventListener('pointerdown', function () { drawerDragged = false; });
+    li.addEventListener('dragstart', function (e) {
+      var dt = e.dataTransfer;
+      if (!dt) return;
+      drawerDragged = true;
+      if (it.kind === 'text') { dt.effectAllowed = 'copy'; dt.setData('text/plain', it.value); return; }
+      if (onThisPC() && !MOCK) {
+        // 크롬의 끌기는 탐색기 · 바탕화면에만 놓인다(§54.1) — 접고, 서버가 탐색기와 같은 진짜 파일로 끌기를 시작한다
+        e.preventDefault();
+        api('/api/drawer/drag', { id: it.id }).then(function (r) {
+          if (r && !r.started && /^error/.test(r.why || '')) toast('끌기를 못 시작했어요 — ' + r.why, 4000);
+        }).catch(fail('끌기 실패'));
+        return;
+      }
+      // 다른 기기(크롬): 탐색기 · 바탕화면에 놓으면 그 파일로 내려받는다
+      dt.effectAllowed = 'copy';
+      dt.setData('DownloadURL', (it.mime || 'application/octet-stream') + ':' + String(it.value || it.label || 'file').replace(/[:\\\/]/g, '_') + ':' + new URL(it.url, location.href).href);
+    });
+  }
+  // 끌던 파일을 Orbit 위에 놓아도 화면이 그 파일로 바뀌지 않게 — 파일 칸(input[type=file])만 그대로
+  function blockFileDrop(e) {
+    var dt = e.dataTransfer;
+    if (!dt || Array.prototype.indexOf.call(dt.types || [], 'Files') < 0) return;
+    if (e.target && e.target.closest && e.target.closest('input[type=file]')) return;
+    e.preventDefault();
+    if (e.type === 'dragover') dt.dropEffect = 'none';
+  }
+  document.addEventListener('dragover', blockFileDrop);
+  document.addEventListener('drop', blockFileDrop);
   var DRAWER_PH = '내용 — 글을 적거나, 파일… 을 고르거나, 그림을 여기 붙여넣기(Ctrl+V)';
   function openDrawerAdd(it) {
     state.drawerEdit = it ? it.id : null;
@@ -3570,6 +3606,7 @@
     } else if (p === '/api/drawer/update') { (db.drawer || []).forEach(function (d) { if (d.id === body.id) { if (body.label !== undefined) d.label = body.label; if (body.value !== undefined) d.value = body.value; } }); out = { ok: true }; }
     else if (p === '/api/drawer/delete') { db.drawer = (db.drawer || []).filter(function (d) { return d.id !== body.id; }); out = { ok: true }; }
     else if (p === '/api/drawer/reveal') out = { ok: true };
+    else if (p === '/api/drawer/drag') out = { ok: true, started: false, why: 'mock' };
     else if (p === '/api/note' && body === undefined) out = { name: q.name, text: db.notes[q.name] || '', ver: 'm' + (db.notes[q.name] || '').length };
     else if (p === '/api/note') { db.notes[body.name] = body.text; out = { ok: true, ver: 'm' + String(body.text || '').length }; }
     else if (p === '/api/pause') {
