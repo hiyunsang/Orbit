@@ -295,9 +295,26 @@
     }).catch(fail('하루 기록 불러오기 실패'));
   }
 
+  // §53 앱이 바뀌면 열린 화면도 새 판으로 — 옛 화면이 며칠 열려 있으면 적은 글이 옛 길(§51 이전)로 간다
+  function checkBuild(b) {
+    if (!b || MOCK) return;
+    if (!state.build) { state.build = b; return; }
+    if (b !== state.build) state.newBuild = true;
+    if (state.newBuild) reloadWhenIdle();
+  }
+  function reloadWhenIdle() {
+    if (!state.newBuild) return;
+    var inp = $('todo-input'), a = document.activeElement;
+    if (inp && inp.value.trim()) return;                                   // 적던 글이 있으면 기다린다
+    if (a && (a.tagName === 'TEXTAREA' || a.tagName === 'INPUT')) return;
+    if (state.popover) return;
+    for (var k in notes) if (notes[k].timer || (notes[k].el && notes[k].el.value !== notes[k].loaded)) return;   // 메모 저장 전
+    location.reload();
+  }
   function loadStatus() {
     return api('/api/status').then(function (st) {
       state.status = st;
+      checkBuild(st.build);
       renderStatus();
       if (state.view === 'week') { if (!state.popover) updateWeekNowLine(); return; }
       if (state.view !== 'day') return;
@@ -2321,6 +2338,7 @@
     loadDrawer();
     loadInbox(); loadKeeps();          // §51
     refreshNotes();
+    loadStatus();                      // §53 앱으로 돌아왔을 때 새 판이면 여기서 바로
   }
   function scheduleNoteSave(which) {
     var n = notes[which];

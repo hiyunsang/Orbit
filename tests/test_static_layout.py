@@ -638,6 +638,33 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertIn('TYPES = ("task", "deadline", "event", "note", "done", "same", "update")', self.inbox)
         self.assertIn("SHOW_SEC = 24 * 3600", self.inbox)
 
+    def test_open_page_follows_new_build_53(self):
+        """§53 옛 화면이 열려 있으면 적은 글이 옛 길로 간다 — 서버가 판을 알려 주고 화면은 쉬는 때에 새로고침."""
+        self.assertIsNotNone(re.search(r"^##\s*53\.", self.design, re.M), "DESIGN.md 에 §53 이 없다")
+        import shutil, tempfile, time
+        import server
+        tmp = tempfile.mkdtemp()
+        old = common.STATIC_DIR
+        try:
+            for n in server._BUILD_FILES:
+                io.open(os.path.join(tmp, n), "w", encoding="utf-8").write(u"x")
+            common.STATIC_DIR = tmp
+            a = server._build_id()
+            self.assertEqual(a, server._build_id(), "그대로면 같은 판")
+            p = os.path.join(tmp, "app.js")
+            os.utime(p, (time.time() + 5, time.time() + 5))
+            self.assertNotEqual(a, server._build_id(), "화면 파일을 고치면 판이 바뀐다")
+        finally:
+            common.STATIC_DIR = old
+            shutil.rmtree(tmp, ignore_errors=True)
+        self.assertIn('st["build"] = _build_id()', io.open(os.path.join(ROOT, "server.py"), encoding="utf-8").read())
+        self.assertIn("checkBuild(st.build);", self.js)
+        rw = self.js[self.js.index("function reloadWhenIdle()"):self.js.index("function loadStatus()")]
+        self.assertIn("inp.value.trim()) return;", rw, "적던 글이 있으면 새로고침하지 않는다")
+        self.assertIn("notes[k].timer", rw, "메모 저장 전이면 새로고침하지 않는다")
+        self.assertIn("location.reload();", rw)
+        self.assertIn("if (!b || MOCK) return;", self.js)
+
     def test_design_19_documented(self):
         self.assertIsNotNone(
             re.search(r"^##\s*19\.", self.design, re.M),

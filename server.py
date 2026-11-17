@@ -280,8 +280,25 @@ def _status(conn, now, names=None):
 # ------------------------------------------------------------------ API 핸들러
 # 시그니처: fn(conn, query(dict of list), body(dict)) -> JSON 직렬화 가능한 객체
 
+_BOOT_TS = time.time()
+_BUILD_FILES = ("app.js", "app.css", "index.html")
+
+
+def _build_id():
+    """§53 화면 판 — 서버를 다시 띄우거나 화면 파일이 바뀌면 달라진다. 열린 화면이 이것을 보고 쉬는 때에 스스로 새로고침."""
+    parts = ["%d" % _BOOT_TS]
+    for n in _BUILD_FILES:
+        try:
+            parts.append("%d" % os.stat(os.path.join(common.STATIC_DIR, n)).st_mtime)
+        except OSError:
+            parts.append("0")
+    return "-".join(parts)
+
+
 def api_status(conn, query, body):
-    return _status(conn, common.now_ts())
+    st = _status(conn, common.now_ts())
+    st["build"] = _build_id()
+    return st
 
 
 def api_config(conn, query, body):
