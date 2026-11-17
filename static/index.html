@@ -56,7 +56,7 @@
       <div><h2 id="ph-title">오늘</h2><label class="ph-subw"><span id="ph-sub"></span><input type="date" id="ph-date" class="ph-date" aria-label="날짜 고르기"></label></div>
       <div class="ph-mv" id="ph-mv"><button class="rb" id="ph-prev" type="button" aria-label="이전">‹</button><button class="rb" id="ph-next" type="button" aria-label="다음">›</button></div>
     </div>
-    <div class="ph-ctl" id="ph-ctl" hidden><div class="pseg" id="ph-seg"><button type="button" data-view="day">하루</button><button type="button" data-view="week">주</button><button type="button" data-view="month">월</button></div></div>
+    <div class="ph-ctl" id="ph-ctl"><div class="pseg" id="ph-seg"><button type="button" data-view="day">하루</button><button type="button" data-view="week">주</button><button type="button" data-view="month">월</button></div></div>
   </section>
   <!-- 요약 한 줄 (§23.2): 하루 보기에서만, 타임라인과 오늘 판 위에 -->
   <section class="day-summary" id="card-summary" aria-label="오늘 요약">
@@ -84,63 +84,33 @@
       </div>
     </dl>
   </section>
-  <!-- 히어로 (§42): 하루 궤도(24시간 원: 바깥 고리 = 타임라인, 안쪽 = 할 일 진행률, 위성 = 지금) + 가운데 활동 시간.
-       좁은 창: 맨 위에 작게, 누르면 타임라인. 넓은 창(§50): 왼쪽 무대에 크게 — 고리 안에 카테고리별 시간, 아래에 주·월 작은 궤도 줄 -->
-  <section id="phone-strip" class="phone-hero" aria-label="오늘 활동">
-    <div class="orbit-box">
-      <div class="orbit" id="ps-tap" role="button" tabindex="0" aria-label="하루 궤도">
-        <svg id="orbit-svg" viewBox="0 0 240 240" aria-hidden="true"></svg>
+  <!-- 궤도 (§42 · §50 · §55): 하루 · 주 · 월이 다 원 — 직선 타임라인은 없다. 휠(손가락은 두 손가락)로 확대, 확대한 채 끌면 옮겨진다.
+       하루 = 24시간 원(바깥 고리 = 기록, 안쪽 = 할 일 진행률, 위성 = 지금), 주 = 날마다 고리(바깥이 월) + 아래 일곱 칸, 월 = 달력 칸마다 작은 궤도.
+       넓은 창(§50)은 왼쪽 무대에 붙박이 — 하루 아래에 주 · 월 작은 궤도 줄. 좁은 창은 맨 위 -->
+  <section id="phone-strip" class="phone-hero" aria-label="궤도">
+    <div class="orbit-box" id="orbit-box">
+      <div class="orbit" id="ps-tap" aria-label="궤도 — 휠로 확대, 끌어서 옮기기">
+        <svg id="orbit-svg" viewBox="0 0 600 600" aria-hidden="true"></svg>
         <div class="orbit-c">
-          <div class="orbit-l">활동</div><div class="hero-num" id="hero-num">—</div><div class="orbit-sub" id="hero-attend"></div>
+          <div class="orbit-l" id="orbit-l">활동</div><div class="hero-num" id="hero-num">—</div><div class="orbit-sub" id="hero-attend"></div>
           <ul class="ob-cats" id="ob-cats"></ul>
           <div class="ob-stats" id="ob-stats"></div>
           <div class="orbit-hov" id="orbit-hov"></div>
         </div>
       </div>
+      <button class="oz-all" id="oz-all" type="button" hidden>전체 보기</button>
     </div>
+    <div class="om-wrap" id="om-wrap" aria-label="월 달력">
+      <div class="om-sum" id="om-sum"></div>
+      <div class="om-head" id="om-head"></div>
+      <div class="om-grid" id="om-grid"></div>
+    </div>
+    <div class="ow-days" id="ow-days" aria-label="날별"></div>
     <div class="hero-foot"><span id="hero-foot"></span><button class="hero-more" id="hero-more" type="button">자세히 ›</button></div>
     <div class="ob-strip" id="ob-strip" aria-label="주 · 월">
       <div class="obs-head"><div class="pseg" id="obs-seg"><button type="button" data-mode="week">주</button><button type="button" data-mode="month">월</button></div><span class="obs-sum" id="obs-sum"></span><span class="obs-mv"><button class="rb" id="obs-prev" type="button" aria-label="이전">‹</button><button class="rb" id="obs-next" type="button" aria-label="다음">›</button></span></div>
       <div class="obs-days" id="obs-days"></div>
     </div>
-  </section>
-  <section id="timeline-wrap" aria-label="타임라인">
-    <div class="zoom-bar" role="group" aria-label="시간축 배율">
-      <button class="act zoom-out" title="시간축 축소 (Ctrl+휠 아래)">−</button>
-      <button class="act zoom-in" title="시간축 확대 (Ctrl+휠 위)">+</button>
-      <button class="act zoom-fit" title="표시 범위가 한 화면에 들어오게 맞춤">맞춤</button>
-      <span class="hint zoom-hint">Ctrl+휠</span>
-    </div>
-    <div id="timeline-scroll">
-      <div id="timeline-inner">
-        <svg id="timeline" xmlns="http://www.w3.org/2000/svg"></svg>
-        <div id="timeline-empty" class="empty" hidden>이 날짜에는 기록이 없습니다.</div>
-      </div>
-    </div>
-    <div class="legend-bar"><div class="legend" id="legend"></div></div>
-  </section>
-
-  <section id="week-wrap" aria-label="주 타임라인" hidden>
-    <div id="week-head"></div>
-    <div class="zoom-bar" role="group" aria-label="시간축 배율">
-      <button class="act zoom-out" title="시간축 축소 (Ctrl+휠 아래)">−</button>
-      <button class="act zoom-in" title="시간축 확대 (Ctrl+휠 위)">+</button>
-      <button class="act zoom-fit" title="표시 범위가 한 화면에 들어오게 맞춤">맞춤</button>
-      <span class="hint zoom-hint">Ctrl+휠</span>
-    </div>
-    <div id="week-scroll">
-      <div id="week-inner">
-        <svg id="week-svg" xmlns="http://www.w3.org/2000/svg"></svg>
-        <div id="week-empty" class="empty" hidden>이 주에는 기록이 없습니다.</div>
-      </div>
-    </div>
-    <div class="legend-bar"><div class="legend" id="legend-week"></div></div>
-  </section>
-
-  <section id="month-wrap" aria-label="월 달력" hidden>
-    <div id="month-weekdays"></div>
-    <div id="month-grid"></div>
-    <div id="month-empty" class="empty" hidden>이 달에는 기록이 없습니다.</div>
   </section>
 
   <aside id="sidebar">
@@ -322,7 +292,7 @@
 </main>
 
 <!-- 폰: 오른쪽 세로 바 (§41) — 화면에 붙어 따라다닌다. 누르면 그 칸으로 -->
-<nav id="phone-rail" class="phone-rail" aria-label="바로 가기"><span class="rail-mark" id="rail-mark"></span><a href="#/today" data-sec="today">오늘</a><a href="#/timeline" data-sec="timeline">타임라인</a><a href="#/todos" data-sec="todos">할일</a><a href="#/keeps" data-sec="keeps">기억</a><a href="#/events" data-sec="events">일정</a><a href="#/notes" data-sec="notes">메모</a><a href="#/night" data-sec="night">밤</a><a href="#/drawer" data-sec="drawer">서랍</a><a href="#/notices" data-sec="notices">공지</a><a href="#/tools" data-sec="tools">기록</a><a href="#/more" data-sec="more">설정</a></nav>
+<nav id="phone-rail" class="phone-rail" aria-label="바로 가기"><span class="rail-mark" id="rail-mark"></span><a href="#/today" data-sec="today">오늘</a><a href="#/todos" data-sec="todos">할일</a><a href="#/keeps" data-sec="keeps">기억</a><a href="#/events" data-sec="events">일정</a><a href="#/notes" data-sec="notes">메모</a><a href="#/night" data-sec="night">밤</a><a href="#/drawer" data-sec="drawer">서랍</a><a href="#/notices" data-sec="notices">공지</a><a href="#/tools" data-sec="tools">기록</a><a href="#/more" data-sec="more">설정</a></nav>
 
 <div id="popover" class="popover" hidden role="dialog" aria-label="구간 분류">
   <div class="pop-head">

@@ -65,12 +65,6 @@ button { font: inherit; }
 .status-banner.st-none .st-dot { background: var(--line-2); }
 .status-banner.st-none .st-text { color: var(--text-3); }
 #main { display: grid; grid-template-columns: minmax(0px, 1fr); }      /* §49 옛 넓은 창의 오른쪽 300px 판은 없앴다 */
-#timeline-wrap, #week-wrap, #month-wrap { height: calc(100vh - var(--header-h)); background: var(--surface); }
-#timeline-wrap { position: relative; display: flex; flex-direction: column; overflow: hidden; }
-#timeline-scroll { flex: 1 1 0%; min-height: 0px; position: relative; overflow: hidden auto; }
-#timeline-inner { position: relative; }
-#timeline { display: block; width: 100%; }
-#timeline-empty, #week-empty { position: absolute; top: 40px; left: 0px; right: 0px; text-align: center; }
 .empty { color: var(--text-3); font-size: 12px; padding: var(--s3); }
 #sidebar { min-width: 280px; background: var(--panel); border-left: 1px solid var(--line-2); height: calc(100vh - var(--header-h)); overflow-y: auto; padding: 0 var(--s3) var(--s8); }
 .side-sec { padding-bottom: var(--s3); border-bottom: 1px solid var(--line); }
@@ -78,7 +72,6 @@ button { font: inherit; }
 .hint-inline { font-weight: 400; font-size: 11px; color: var(--text-3); text-transform: none; letter-spacing: 0px; }
 @media (max-width: 1099px) {
   #main { grid-template-columns: 1fr; }
-  #timeline-wrap, #week-wrap, #month-wrap { height: 62vh; }
   #sidebar { height: auto; overflow: visible; border-left: 0px; border-top: 1px solid var(--line-2); min-width: 0px; }
   #date-input:disabled { display: none; }
   #date-input:not(:disabled) + .date-label { display: none; }
@@ -129,60 +122,8 @@ button { font: inherit; }
 .save-state { font-size: 11px; color: var(--text-3); }
 textarea { display: block; width: 100%; resize: vertical; font-size: 12.5px; line-height: 1.5; padding: 6px 8px; border-color: var(--line); background: var(--surface); }
 textarea:disabled { background: var(--panel); color: var(--text-3); }
-.legend { font-size: 12px; color: var(--text-2); line-height: 1.8; margin-top: var(--s1); }
-.legend-item { display: inline; white-space: nowrap; }
-.legend-item + .legend-item::before { content: " · "; color: var(--text-3); white-space: normal; }
-.legend-item .swatch { margin-right: 5px; border-color: var(--line-2); }
 .foot-links { display: flex; justify-content: flex-end; gap: var(--s3); padding: var(--s2) 0 0; }
 .foot-links .act { padding: 4px 0px; }
-#timeline text, #week-svg text { font-family: var(--font); }
-.grid-line { stroke: var(--line); stroke-width: 1; }
-.grid-line.major { stroke: var(--line-2); }
-.hour-label { font-size: 11px; fill: var(--text-3); }
-.span { cursor: pointer; }
-.span:hover { filter: brightness(0.96); }
-.span-overlay, .span-text { pointer-events: none; }
-.span-text { font-size: 11px; }
-.now-line { pointer-events: none; stroke: var(--accent); stroke-width: 1.5; }
-.wk-today-bg { fill: var(--sel-bg); }
-.zoom-bar { flex: 0 0 auto; height: 24px; display: flex; justify-content: flex-end; align-items: center; gap: 0px; padding: 0 var(--s2); background: var(--surface); }
-.zoom-bar .act { padding: 2px 6px; line-height: 1.2; }
-.zoom-bar .zoom-hint { margin-left: 4px; user-select: none; }
-#week-wrap { position: relative; display: flex; flex-direction: column; overflow: hidden; }
-#week-head { display: flex; flex-shrink: 0; padding: var(--s2) 0 6px; border-bottom: 1px solid var(--line); background: var(--surface); }
-.wk-gutter { flex: 0 0 48px; }
-.wk-col { flex: 0 0 auto; min-width: 0px; padding: 3px 5px; cursor: pointer; overflow: hidden; }
-.wk-col.today { background: var(--sel-bg); }
-.wk-col:hover, .wk-col.today:hover { background: var(--hover); }
-.wk-col.future .wk-day, .wk-col.future .wk-sub { color: var(--text-3); }
-.wk-day { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wk-col.today .wk-day { color: var(--accent); }
-.wk-sub { font-size: 11px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
-.wk-sub2 { margin-top: 0px; min-height: 14px; }
-#week-scroll { flex: 1 1 0%; overflow: hidden auto; position: relative; }
-#week-inner { position: relative; }
-#week-svg { display: block; width: 100%; }
-#month-wrap { position: relative; overflow-y: auto; padding: var(--s3) var(--s4) var(--s6); }
-#month-weekdays { display: grid; grid-template-columns: repeat(7, minmax(0px, 1fr)); }
-.mwd { font-size: 11px; font-weight: 500; letter-spacing: 0.04em; color: var(--text-2); text-align: center; padding: 2px 0px 6px; }
-#month-grid { display: grid; grid-template-columns: repeat(7, minmax(0px, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
-.mcell { min-height: 84px; min-width: 0px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--surface); padding: 6px 8px; cursor: pointer; display: flex; flex-direction: column; }
-.mcell.today { background: var(--sel-bg); }
-.mcell.sel { box-shadow: inset 3px 0 0 var(--accent); background: var(--sel-bg); }
-.mcell:hover, .mcell.today:hover, .mcell.sel:hover { background: var(--hover); }
-.mcell.pad { background: var(--bg); cursor: default; }
-.mcell.pad:hover { background: var(--bg); }
-.mday { font-size: 12px; font-weight: 400; color: var(--text-2); line-height: 1.3; }
-.mcell.today .mday { color: var(--accent); font-weight: 500; }
-.mcell.future .mday, .mcell.future .mattend, .mcell.future .mact { color: var(--text-3); }
-.mattend { font-size: 11px; color: var(--text-2); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mbar-wrap { margin-top: auto; padding-top: 6px; }
-.mbar { height: 6px; display: flex; overflow: hidden; background: transparent; }
-.mseg { height: 100%; flex: 0 0 auto; min-width: 0px; }
-.mseg.distraction { background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.7) 0px, rgba(255, 255, 255, 0.7) 2px, transparent 2px, transparent 5px); }
-.mact { font-size: 11px; color: var(--text-2); margin-top: 3px; white-space: nowrap; }
-.mact.none { color: var(--text-3); }
-#month-empty { text-align: center; }
 .popover { position: absolute; z-index: 50; width: 360px; max-width: calc(-16px + 100vw); background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r); box-shadow: rgba(0, 0, 0, 0.08) 0px 4px 16px; padding: var(--s3) var(--s3) var(--s2); }
 .pop-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s2); }
 .pop-time { font-size: 13px; font-weight: 500; }
@@ -366,17 +307,6 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
 #card-todos { margin: 0 calc(-1 * var(--s3)); padding: 0 var(--s3) var(--s3); background: var(--surface); border-top: 1px solid var(--line-2); border-bottom: 1px solid var(--line-2); border-left: 3px solid var(--accent); }
 #card-vocab { border-bottom: 0; }
 #card-anki { border-top: 1px solid var(--line); }
-/* §25 월 칸의 밤 일정 한 줄 — 글자색만(했음 초록, 안 했음 회색) */
-.mnight { font-size: 11px; color: var(--accent); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mnight.ok { color: var(--green); }
-.mnight.no { color: var(--text-3); }
-/* §26 월 칸 출퇴근 트랙 — 회색 축 위 accent 막대, 9·18시 눈금 */
-.mtrack { position: relative; height: 6px; margin-top: 4px; background: var(--bg); border-radius: 3px; }
-.mtrack .mtick { position: absolute; top: -1px; bottom: -1px; width: 1px; background: var(--line-2); }
-.mtrack .mspan { position: absolute; top: 0; bottom: 0; background: var(--line-2); border-radius: 2px; display: flex; overflow: hidden; }
-.mtrack .mspan .mseg { height: 100%; flex: none; }
-.mtrack { height: 8px; }
-.mcell.future .mtrack { visibility: hidden; }
 
 /* ── 내 일정·마감 (§28) — 할 일·학사 일정과 같은 어휘. D-day 는 글자색만(7일 이내 앰버, 오늘·지남 빨강) ── */
 #main.view-week #card-events, #main.view-month #card-events, #main.view-week #card-due, #main.view-month #card-due, #main.view-week .zone, #main.view-month .zone { display: none; }
@@ -400,9 +330,6 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
 .tonight.due .list { margin: 0; }
 .tonight.due li.list-row { padding: 6px 0; display: flex; align-items: baseline; gap: var(--s2); }
 .tonight.due .evt-t { font-weight: 500; color: var(--text); }
-.mevt { font-size: 11px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mevt.deadline { color: var(--amber); }
-.mevt.done { color: var(--text-3); text-decoration: line-through; }
 .period-l2 .evt { color: var(--amber); }
 
 /* ── §29 판의 구역 머리: 판 가장자리까지 닿는 띠(--bg) + 왼쪽 3px 선 + 13px 제목 + 개수 + 접기. 카드·그림자 없음.
@@ -439,9 +366,6 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
 .tl-row .act { flex: none; padding: 2px 6px; }
 
 /* ── §30 ── */
-/* 범례는 타임라인 아래 띠로 (사이드 판에서 뺌). 주 보기에도 같은 띠 */
-.legend-bar { flex: none; padding: 3px var(--s3) 4px; border-top: 1px solid var(--line); background: var(--surface); }
-.legend-bar .legend { margin: 0; line-height: 1.6; font-size: 11px; }
 /* 메모: 오늘/고정 탭, 칸은 3줄에서 자라남(최대 14줄) */
 .note-tabs { margin-left: var(--s2); }
 .note-tabs .seg-btn { padding: 2px 8px; font-size: 11px; text-transform: none; letter-spacing: 0; }
@@ -512,9 +436,7 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
 [data-theme="dark"] ::-webkit-scrollbar-thumb { background: #2f3136; }
 [data-theme="dark"] img.brand-mark { filter: invert(1); }          /* <img> 정지 마크는 잉크색 고정 — 뒤집어 밝게. 끼워 넣은 분침 svg 는 currentColor */
 [data-theme="dark"] .swatch, [data-theme="dark"] .cdot { border-color: rgba(255, 255, 255, 0.16); }
-[data-theme="dark"] .span:hover { filter: brightness(1.12); }
 .brand-mark { color: var(--text); }
-.span.override, .night-band rect { stroke: var(--accent); }         /* JS 가 박아 넣는 #1f4fd1 대신 테마의 강조색 */
 
 /* ── §39.2 폰 — §49 부터는 모든 폭(PC 도 같은 화면, 폭에 따른 배치는 맨 아래 §49). §42: Linear 쪽 — 거의 검정 · 가는 테두리 · 은은한 결. 맨 위에 하루 궤도(링), 아래는 두 칸 타일(누르면 그 자리에서 펼침), 오른쪽 세로 바(§41)는 그대로. 타임라인만 따로 화면.
    굵기는 400·500 둘, 색은 데이터(타임라인)와 상태(지남·임박·기록 중)에만 ── */
@@ -525,24 +447,99 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
 /* §42 로고만 — 글자 ORBIT 은 모든 폭에서 감춘다 */
 #header h1 .brand-text { display: none; }
 #header h1 .brand-mark { height: 22px; width: 22px; }
-/* §42 하루 궤도: 24시간 원(맨 위가 0시, 시계 방향). 바깥 고리 = 타임라인, 안쪽 가는 고리 = 오늘 할 일 진행률, 작은 위성 = 지금 */
-.ob-track { fill: none; stroke: var(--fill); stroke-width: 10; }
-.ob-track2 { fill: none; stroke: var(--fill); stroke-width: 2; }
-.ob-arc { fill: none; stroke-width: 10; }
-.ob-prog { fill: none; stroke: var(--text); stroke-width: 2.5; stroke-linecap: round; }
-.ob-hr { fill: var(--text-3); font-size: 9px; }
-.ob-now { fill: var(--text); stroke: var(--pg); stroke-width: 3; }
-/* §50 큰 궤도(넓은 창의 무대, viewBox 600): 매 시 눈금 · 밤 계획 점선 호 · 구간에 올리면 나머지가 흐려진다 */
-.ob-big .ob-track { stroke-width: 22; }
-.ob-big .ob-track2 { stroke-width: 1.5; }
-.ob-big .ob-arc { stroke-width: 22; cursor: pointer; transition: opacity 0.12s; }
+/* §42 · §50 · §55 궤도(viewBox 600, 맨 위가 0시 · 시계 방향): 바깥 고리 = 기록, 안쪽 가는 고리 = 할 일 진행률, 위성 = 지금.
+   확대해도 글자 · 가는 선은 화면에서 같은 크기(--u = 1 / (배율 × min(원 크기, 1))), 고리 굵기는 √배율로 조금씩(--kw = 1/√배율) */
+#orbit-svg { --u: 1; --kw: 1; }
+#orbit-svg text { font-family: var(--font); }
+.ob-track { fill: none; stroke: var(--fill); stroke-width: calc(22px * var(--kw)); }
+.ob-track2 { fill: none; stroke: var(--fill); stroke-width: calc(1.5px * var(--u)); }
+.ob-arc { fill: none; stroke-width: calc(22px * var(--kw)); cursor: pointer; transition: opacity 0.12s; }
+.ow .ob-track, .ow .ob-arc { stroke-width: calc(13px * var(--kw)); }
+.ow .ob-track.today { stroke: var(--line-2); }
 .ob-big.dim .ob-arc:not(.on) { opacity: 0.22; }
-.ob-big .ob-prog { stroke-width: 3; }
-.ob-big .ob-hr { font-size: 11px; }
-.ob-big .ob-now { stroke-width: 5; }
-.ob-tick { stroke: var(--text-3); stroke-width: 1; opacity: 0.45; }
+.ob-prog { fill: none; stroke: var(--text); stroke-width: calc(3px * var(--u)); stroke-linecap: round; }
+.ob-hr { fill: var(--text-3); font-size: calc(11px * var(--u)); }
+.ob-now { fill: var(--text); stroke: var(--pg); stroke-width: calc(5px * var(--u)); r: calc(8px * var(--u)); pointer-events: none; }
+.ow .ob-now { stroke-width: calc(4px * var(--u)); r: calc(6px * var(--u)); }
+.ob-tick { stroke: var(--text-3); stroke-width: calc(1px * var(--u)); opacity: 0.45; }
 .ob-tick.maj { opacity: 1; }
-.ob-night { fill: none; stroke: var(--text-2); stroke-width: 1.5; stroke-dasharray: 2 5; stroke-linecap: round; }
+.ow-spoke { stroke: var(--text-3); stroke-width: calc(1px * var(--u)); opacity: 0.22; }
+.ob-night { fill: none; stroke: var(--text-2); stroke-width: calc(1.5px * var(--u)); stroke-dasharray: calc(2px * var(--u)) calc(5px * var(--u)); stroke-linecap: round; pointer-events: none; }
+.ob-lbl { font-weight: 500; letter-spacing: 0; pointer-events: none; }
+.ow-lbl { fill: var(--text-3); font-size: calc(10px * var(--u)); paint-order: stroke; stroke: var(--pg); stroke-width: calc(4px * var(--u)); stroke-linejoin: round; pointer-events: none; }
+.ow-lbl.today, .ow-lbl.on { fill: var(--text); font-weight: 500; }
+/* 고리 안: 분류별 시간(범례를 겸한다) + 한 줄 — §50 은 넓은 창만, §55 부터 모든 폭 */
+.ob-cats { list-style: none; margin: 4cqw 0 0; padding: 0; width: clamp(170px, 38cqw, 300px); pointer-events: auto; }
+.ob-cats li { display: flex; align-items: center; gap: 9px; height: clamp(21px, 4.2cqw, 31px); font-size: clamp(12px, 2.3cqw, 15px); color: var(--text-2); cursor: default; }
+.ob-cats .d, .oh-cat .d { flex: none; width: 8px; height: 8px; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--line-2); }
+.ob-cats .n { color: var(--text); }
+.ob-cats .t { margin-left: auto; font-variant-numeric: tabular-nums; }
+.ob-cats li:hover .t { color: var(--text); }
+.ob-stats { margin-top: 3.2cqw; max-width: 50cqw; font-size: clamp(12px, 2cqw, 14px); line-height: 1.5; color: var(--text-3); text-wrap: balance; }
+@container (max-width: 470px) { .ob-cats li:nth-child(n+5) { display: none; } }
+#main:not(.pg-split) .ob-stats { display: none; }          /* 한 장(폰 · 가운데 한 줄)은 궤도 아래 줄(hero-foot)에 같은 글이 있다 */
+@container (max-width: 420px) { .ob-cats { margin-top: 3cqw; } .ob-cats li:nth-child(n+4) { display: none; } .ob-stats { display: none; } }
+/* 주(§55.3): 안쪽 고리 안이 좁다 — 큰 숫자 · 출근 줄 · 분류 셋만 */
+.orbit.wk .hero-num { font-size: clamp(26px, 7cqw, 54px); }
+.orbit.wk .hero-num small { font-size: clamp(11px, 2.2cqw, 16px); }
+.orbit.wk .orbit-sub { font-size: clamp(11px, 1.9cqw, 14px); }
+.orbit.wk .ob-cats { width: clamp(140px, 29cqw, 220px); margin-top: 2.2cqw; }
+.orbit.wk .ob-cats li { height: clamp(18px, 3.3cqw, 24px); font-size: clamp(11px, 1.9cqw, 13px); }
+.orbit.wk .ob-cats li:nth-child(n+4), .orbit.wk .ob-stats { display: none; }
+.orbit.wk.hov .orbit-hov { width: clamp(150px, 34cqw, 260px); }
+.orbit.wk .oh-len { font-size: clamp(22px, 5.4cqw, 42px); }
+/* 구간에 올렸을 때(손가락은 눌렀을 때): 가운데가 그 구간으로 */
+.orbit.hov .orbit-c > :not(.orbit-hov) { display: none; }
+.orbit.hov .orbit-hov { display: block; width: clamp(180px, 48cqw, 400px); }
+.oh-time { font-family: var(--mono); font-size: clamp(12px, 2.3cqw, 16px); color: var(--text-3); }
+.oh-len { margin-top: 0.6cqw; font-size: clamp(28px, 7.2cqw, 58px); font-weight: 500; letter-spacing: -0.04em; line-height: 1.15; color: var(--text); }
+.oh-cat { display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 1.4cqw; font-size: clamp(13px, 2.6cqw, 17px); color: var(--text); }
+.oh-app { margin-top: 2.6cqw; font-size: clamp(12px, 2.3cqw, 15px); color: var(--text-2); }
+.oh-title { margin-top: 3px; font-size: clamp(12px, 2cqw, 13px); line-height: 1.45; color: var(--text-3); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.oh-hint { margin-top: 2.6cqw; font-size: 12px; color: var(--text-3); }
+/* §55.5 확대한 동안: 고리 안의 글은 숨고, 올린 구간은 왼쪽 아래 작은 칸에 · 오른쪽 아래 '전체 보기' */
+.orbit-box.zoomed .orbit-c { display: none; }
+.orbit-box.zoomed .orbit.hov .orbit-c { display: block; inset: auto auto calc(10px - var(--oy, 0px)) calc(10px - var(--ox, 0px)); width: auto; max-width: min(320px, 72cqw); padding: 10px 12px 11px; text-align: left; background: var(--pg); border: 1px solid var(--line); border-radius: 10px; }
+.orbit-box.zoomed .orbit.hov .orbit-hov { width: auto; }
+.orbit-box.zoomed .oh-time { font-size: 12px; }
+.orbit-box.zoomed .oh-len { margin-top: 2px; font-size: 22px; }
+.orbit-box.zoomed .oh-cat { justify-content: flex-start; margin-top: 4px; font-size: 13px; }
+.orbit-box.zoomed .oh-app, .orbit-box.zoomed .oh-hint { margin-top: 6px; font-size: 12px; }
+.oz-all { position: absolute; right: 10px; bottom: 10px; z-index: 2; height: 30px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--pg); font: inherit; font-size: 13px; color: var(--text-2); cursor: pointer; }
+.oz-all:hover { color: var(--text); border-color: var(--line-2); }
+/* §55.3 주 궤도 아래 일곱 칸(날별 숫자) */
+.ow-days { display: none; }
+#main.view-week .ow-days { display: flex; gap: 2px; margin: 8px -4px 0; container: ow / inline-size; }
+.ow-day { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 7px 0 6px; border: 0; border-radius: 10px; background: none; font: inherit; font-size: 12px; line-height: 1.35; color: var(--text-3); cursor: pointer; }
+.ow-day:hover, .ow-day.on { background: var(--fill); color: var(--text); }
+.ow-day.today .w { color: var(--text); font-weight: 500; }
+.ow-day.future { opacity: 0.4; cursor: default; background: none; }
+.ow-day .w { white-space: nowrap; }
+.ow-day .a { font-family: var(--mono); font-size: 12px; letter-spacing: 0; color: var(--text-2); white-space: nowrap; }
+.ow-day .t { max-width: 100%; font-family: var(--mono); font-size: 10.5px; letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@container ow (max-width: 460px) { .ow-day .t { display: none; } }   /* 칸이 좁으면(폰) 출근 → 퇴근 줄은 뺀다 */
+/* §55.4 월 = 달력에 날마다 작은 궤도 */
+.om-wrap { display: none; }
+#main.view-month .orbit-box, #main.view-month .hero-foot { display: none !important; }
+#main.view-month .om-wrap { display: flex; flex-direction: column; }
+#main:not(.view-day) .ob-strip { display: none !important; }
+.om-sum { margin: 2px 0 10px; font-size: 13px; line-height: 1.5; color: var(--text-2); }
+.om-head, .om-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.omw { padding: 0 0 6px; font-size: 12px; color: var(--text-3); text-align: center; }
+.om-grid { gap: 2px; }
+.om-cell { position: relative; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px 5px; border: 0; border-radius: 10px; background: none; font: inherit; color: var(--text-2); cursor: pointer; container-type: inline-size; }
+.om-cell:hover { background: var(--fill); }
+.om-cell.pad { visibility: hidden; }
+.om-cell.future { opacity: 0.45; }
+.om-d { align-self: flex-start; margin-left: 6px; padding: 0 1px; font-size: 12px; line-height: 1.4; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.om-cell.today .om-d { margin-left: 2px; padding: 0 6px; border-radius: 9px; background: var(--text); color: var(--pg); font-weight: 500; }
+.om-o { position: relative; display: block; width: min(100%, 84px); aspect-ratio: 1 / 1; }
+.om-o .ob-mini { width: 100%; height: 100%; }
+.om-a { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: clamp(9px, 11cqw, 12px); letter-spacing: -0.02em; color: var(--text); }
+.om-e { width: 100%; padding: 0 4px; font-size: 11px; line-height: 1.35; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+.om-e.evt { color: var(--amber); }
+.om-e.done { text-decoration: line-through; }
+@container (max-width: 64px) { .om-e { display: none; } .om-a { font-size: 9px; } }
 /* §50 작은 궤도(주 · 월 줄, viewBox 64) */
 .ob-mini { display: block; overflow: visible; }
 .om-track { fill: none; stroke: var(--fill); stroke-width: 7; }
@@ -575,9 +572,8 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
   #status-banner { margin-left: auto; font-size: 13px; min-width: 0; }
   .status-banner .st-text { display: inline; max-width: 56vw; }
   #main { background: var(--pg); padding-right: var(--rail-w); padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)); min-height: calc(100dvh - 52px); align-content: start; }
-  /* 무엇이 보이나: 기본은 다 숨기고 고른 것만 (JS 가 숨긴 [hidden] 은 그대로 숨는다). pg-home = 한 장, pg-timeline = 타임라인 */
-  #main.phone-pages > #sidebar > *, #main.phone-pages #mine-body > *, #main.phone-pages > .day-summary,
-  #main.phone-pages:not(.pg-timeline) > #timeline-wrap, #main.phone-pages:not(.pg-timeline) > #week-wrap, #main.phone-pages:not(.pg-timeline) > #month-wrap { display: none !important; }
+  /* 무엇이 보이나: 기본은 다 숨기고 고른 것만 (JS 가 숨긴 [hidden] 은 그대로 숨는다). pg-home = 한 장(§55 부터 늘) */
+  #main.phone-pages > #sidebar > *, #main.phone-pages #mine-body > *, #main.phone-pages > .day-summary { display: none !important; }
   #main.phone-pages > #sidebar > #mine-body { display: contents !important; }          /* 안의 칸들이 바깥 격자에 직접 선다 */
   #main.phone-pages > #sidebar { order: 2; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-flow: dense; gap: 10px; align-items: stretch; height: auto; overflow: visible; padding: 0 var(--gut); background: transparent; border: 0; min-width: 0; }
   #main.phone-pages > .phone-head { display: block; order: -9; }
@@ -591,17 +587,9 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
   #main.phone-pages.pg-home #card-tonight:not([hidden]), #main.phone-pages.pg-home #card-todos, #main.phone-pages.pg-home #card-keeps, #main.phone-pages.pg-home #card-events, #main.phone-pages.pg-home #card-notes,
   #main.phone-pages.pg-home #card-night, #main.phone-pages.pg-home #card-drawer, #main.phone-pages.pg-home #card-notices:not([hidden]),
   #main.phone-pages.pg-home #card-unknown, #main.phone-pages.pg-home #card-pause, #main.phone-pages.pg-home #card-reading:not([hidden]),
-  #main.phone-pages.pg-home #card-devices:not([hidden]), #main.phone-pages.pg-timeline:not(.view-day) #card-period:not([hidden]) { display: block !important; }
+  #main.phone-pages.pg-home #card-devices:not([hidden]), #main.phone-pages:not(.view-day) #card-period:not([hidden]) { display: block !important; }
   #card-tonight { order: 1; } #card-todos { order: 2; } #card-keeps { order: 2; } #card-events { order: 3; } #card-notes { order: 4; } #card-night { order: 5; } #card-drawer { order: 6; }
   #card-notices { order: 7; } #card-unknown { order: 8; } #card-pause { order: 9; } #card-reading { order: 10; } #card-devices { order: 11; }
-  /* 타임라인 화면: 머리 아래부터 바닥까지 */
-  #main.phone-pages.pg-timeline.view-day { padding-bottom: 0; }
-  #main.phone-pages.pg-timeline > #timeline-wrap { order: 1; height: calc(100dvh - var(--tl-top, 200px)); border-top: 1px solid var(--line); background: var(--pg); }
-  #main.phone-pages.pg-timeline > #week-wrap, #main.phone-pages.pg-timeline > #month-wrap { order: 1; background: var(--pg); border-top: 1px solid var(--line); }
-  #main.phone-pages.pg-timeline.view-day > #sidebar { display: none !important; }
-  #main.phone-pages .zoom-bar { height: 34px; padding: 0 12px; background: var(--pg); }
-  #main.phone-pages .zoom-bar .zoom-hint { display: none; }
-  #main.phone-pages .zoom-bar .act { padding: 6px 10px; font-size: 13px; }
   /* 화면 머리: 날짜가 제목 */
   .phone-head { padding: 20px var(--gut) 10px; }
   .ph-row1 { display: flex; align-items: flex-end; }
@@ -614,22 +602,25 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
   #ph-prev::before, #obs-prev::before { margin-left: -2px; transform: rotate(-135deg); }
   .rb:active { background: var(--fill); }
   /* 하루·주·월: 글자 탭 — 고른 것 아래에만 줄. 타임라인의 윗선 위에 얹힌다 */
-  body[data-page="timeline"] .phone-head { padding-bottom: 0; }
   .ph-ctl { display: flex; margin-top: 10px; }
   .pseg { display: inline-flex; gap: 22px; }
   .pseg button { height: 38px; padding: 0; border: 0; border-bottom: 1px solid transparent; margin-bottom: -1px; position: relative; z-index: 1; background: none; border-radius: 0; font: inherit; font-size: 15px; color: var(--text-3); cursor: pointer; }
   .pseg button.on { color: var(--text); font-weight: 500; border-bottom-color: var(--text); }
   /* 오늘: 하루 궤도 — 가운데에 활동 시간 */
   .phone-hero { margin: 0; padding: 4px var(--gut) 18px; border-radius: 0; background: none; }
-  .orbit { position: relative; width: min(252px, 66vw); margin: 0 auto; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-  .orbit::before { content: ""; position: absolute; inset: -16%; background: radial-gradient(closest-side, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0) 72%); pointer-events: none; }
-  .orbit svg { position: relative; display: block; width: 100%; height: auto; }
+  /* §55 궤도 상자: 폭에 맞춘 정사각형(화면이 낮으면 낮게) — 그 안의 가장 큰 원. 그림(svg)은 상자 전체를 덮어 확대하면 원 밖까지 펼쳐진다 */
+  .orbit-box { position: relative; width: 100%; aspect-ratio: 1 / 1; max-height: calc(100dvh - 190px); min-height: 260px; display: grid; place-items: center; container-type: size; overflow: hidden; touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+  .orbit-box.zoomed { touch-action: none; cursor: grab; }
+  .orbit-box.zoomed.grabbing { cursor: grabbing; }
+  .orbit { position: relative; width: min(100cqw, 100cqh, 840px); aspect-ratio: 1 / 1; margin: 0; container-type: inline-size; -webkit-tap-highlight-color: transparent; }
+  .orbit::before { content: ""; position: absolute; inset: -5%; background: radial-gradient(closest-side, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0) 72%); pointer-events: none; }
+  .orbit svg { position: absolute; left: 0; top: 0; display: block; width: 100%; height: 100%; }
   .orbit-c { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; pointer-events: none; }
-  .orbit-l { font-size: 12px; color: var(--text-3); }
-  .hero-num { margin-top: 1px; font-size: 34px; font-weight: 500; letter-spacing: -0.04em; line-height: 1.15; color: var(--text); }
-  .hero-num small { font-size: 13px; font-weight: 400; letter-spacing: 0; color: var(--text-2); margin: 0 6px 0 2px; }
+  .orbit-l { font-size: clamp(12px, 2.1cqw, 15px); color: var(--text-3); }
+  .hero-num { margin-top: 0.3cqw; font-size: clamp(34px, 10.4cqw, 84px); font-weight: 500; letter-spacing: -0.04em; line-height: 1.15; color: var(--text); }
+  .hero-num small { font-size: clamp(13px, 2.9cqw, 22px); font-weight: 400; letter-spacing: 0; color: var(--text-2); margin: 0 1.5cqw 0 0.5cqw; }
   .hero-num small:last-child { margin-right: 0; }
-  .orbit-sub { margin-top: 3px; font-size: 12px; color: var(--text-3); }
+  .orbit-sub { margin-top: 0.8cqw; font-size: clamp(12px, 2.3cqw, 16px); color: var(--text-2); }
   .hero-foot { display: flex; align-items: center; margin-top: 12px; font-size: 13px; color: var(--text-2); }
   .hero-more { margin-left: auto; border: 0; background: none; padding: 4px 0 4px 10px; font: inherit; font-size: 13px; font-weight: 400; color: var(--text-3); cursor: pointer; white-space: nowrap; }
   /* 칸 = 카드: 살짝 뜬 면 + 1px 테두리. 할 일·오늘 밤·펼친 칸은 두 칸을 다 쓴다 */
@@ -740,8 +731,8 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
 
 /* ── §49 PC 도 폰과 같은 화면(2026-11-11): 위의 폰 규칙이 모든 폭에 걸리고, 여기서는 폭에 따라 배치만 바꾼다.
    ~559 폰 그대로 · 560~1099 한 줄을 가운데(최대 600) · 1100~ 나란히: 왼쪽 무대(붙박이) | 오른쪽 한 장 | 세로 바.
-   §50(2026-11-12) 무대 = 화면 머리 + 큰 하루 궤도 + 주·월 작은 궤도 줄. 세로 바의 '타임라인' 을 누르면 무대가 세로 타임라인(.stage-tl) ── */
-.ob-cats, .ob-stats, .orbit-hov, .ob-strip { display: none; }
+   §50(2026-11-12) 무대 = 화면 머리 + 큰 하루 궤도 + 주·월 작은 궤도 줄. §55(2026-11-17) 무대가 곧 타임라인 — 하루 · 주 · 월이 다 궤도 ── */
+.orbit-hov, .ob-strip { display: none; }
 @media (min-width: 560px) {
   :root { --gut: 20px; }
 }
@@ -760,34 +751,10 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
   #main.pg-split > .phone-head .pseg button { border-bottom-width: 1.5px; }
   /* 무대: 큰 궤도(남는 자리에 들어가는 가장 큰 정사각형) + 아래 작은 궤도 줄 */
   #main.phone-pages.pg-split > .phone-hero { display: flex; flex-direction: column; position: fixed; z-index: 5; top: calc(52px + var(--sh-h)); left: 0; right: var(--stage-r); bottom: 0; margin: 0; padding: 0 var(--stage-pad) 14px; background: var(--pg); border-right: 1px solid var(--line); }
-  #main.phone-pages.pg-split.stage-tl > .phone-hero { display: none; }
   #main.phone-pages.pg-split.hero-open > .day-summary { display: none !important; }
   #main.pg-split .hero-foot { display: none; }
-  #main.pg-split .orbit-box { flex: 1 1 0; min-height: 0; display: grid; place-items: center; container-type: size; }
-  #main.pg-split .orbit { width: min(100%, 70vh); width: min(100cqw, 100cqh, 840px); margin: 0; cursor: default; container-type: inline-size; }
-  #main.pg-split .orbit::before { inset: -5%; }
-  #main.pg-split .orbit-l { font-size: clamp(12px, 2.1cqw, 15px); }
-  #main.pg-split .hero-num { margin-top: 0.3cqw; font-size: clamp(36px, 10.4cqw, 84px); }
-  #main.pg-split .hero-num small { font-size: clamp(13px, 2.9cqw, 22px); margin: 0 1.5cqw 0 0.5cqw; }
-  #main.pg-split .orbit-sub { margin-top: 0.8cqw; font-size: clamp(12px, 2.3cqw, 16px); color: var(--text-2); }
-  /* 고리 안: 카테고리별 시간(범례를 겸한다) + 한 줄 */
-  #main.pg-split .ob-cats { display: block; list-style: none; margin: 4cqw 0 0; padding: 0; width: clamp(180px, 38cqw, 300px); pointer-events: auto; }
-  .ob-cats li { display: flex; align-items: center; gap: 9px; height: clamp(21px, 4.2cqw, 31px); font-size: clamp(12px, 2.3cqw, 15px); color: var(--text-2); cursor: default; }
-  .ob-cats .d, .oh-cat .d { flex: none; width: 8px; height: 8px; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--line-2); }
-  .ob-cats .n { color: var(--text); }
-  .ob-cats .t { margin-left: auto; font-variant-numeric: tabular-nums; }
-  .ob-cats li:hover .t { color: var(--text); }
-  #main.pg-split .ob-stats { display: block; margin-top: 3.2cqw; max-width: 50cqw; font-size: clamp(12px, 2cqw, 14px); line-height: 1.5; color: var(--text-3); text-wrap: balance; }
-  @container (max-width: 470px) { .ob-cats li:nth-child(n+5) { display: none; } }
-  /* 구간에 올렸을 때: 가운데가 그 구간으로 */
-  #main.pg-split .orbit.hov .orbit-c > :not(.orbit-hov) { display: none; }
-  #main.pg-split .orbit.hov .orbit-hov { display: block; width: clamp(200px, 48cqw, 400px); }
-  .oh-time { font-family: var(--mono); font-size: clamp(12px, 2.3cqw, 16px); color: var(--text-3); }
-  .oh-len { margin-top: 0.6cqw; font-size: clamp(28px, 7.2cqw, 58px); font-weight: 500; letter-spacing: -0.04em; line-height: 1.15; color: var(--text); }
-  .oh-cat { display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 1.4cqw; font-size: clamp(13px, 2.6cqw, 17px); color: var(--text); }
-  .oh-app { margin-top: 2.6cqw; font-size: clamp(12px, 2.3cqw, 15px); color: var(--text-2); }
-  .oh-title { margin-top: 3px; font-size: clamp(12px, 2cqw, 13px); line-height: 1.45; color: var(--text-3); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
-  .oh-hint { margin-top: 2.6cqw; font-size: 12px; color: var(--text-3); }
+  #main.pg-split .orbit-box { flex: 1 1 0; }
+  #main.pg-split .orbit-box { width: auto; aspect-ratio: auto; max-height: none; min-height: 0; touch-action: none; }
   /* 작은 궤도 줄: 주 = 일곱 개의 하루 궤도, 월 = 날마다 아주 작은 고리 */
   #main.pg-split .ob-strip { display: block; flex: none; }
   .obs-head { display: flex; align-items: center; height: 40px; }
@@ -810,10 +777,14 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
   .obs-days.month .obs-day.wkend { color: var(--text-3); opacity: 0.75; }
   .obs-days.month .obs-day.picked { opacity: 1; }
   .obs-days.month .ob-mini { width: min(34px, 82%); height: auto; aspect-ratio: 1; margin-bottom: 5px; }
-  /* 타임라인 무대(§49 의 붙박이 타임라인을 그대로): 세로 바의 '타임라인' 을 눌렀을 때만 */
-  #main.phone-pages.pg-split.stage-tl > #timeline-wrap:not([hidden]), #main.phone-pages.pg-split.stage-tl > #week-wrap:not([hidden]) { display: flex !important; }
-  #main.phone-pages.pg-split.stage-tl > #month-wrap:not([hidden]) { display: block !important; }
-  #main.pg-split > #timeline-wrap, #main.pg-split > #week-wrap, #main.pg-split > #month-wrap { position: fixed; z-index: 5; top: calc(52px + var(--sh-h)); left: 0; right: var(--stage-r); bottom: 0; height: auto; background: var(--pg); border-right: 1px solid var(--line); border-top: 1px solid var(--line); }
-  #main.pg-split > #month-wrap { overflow-y: auto; }
-  #main.phone-pages.pg-split.stage-tl:not(.view-day) #card-period:not([hidden]) { display: block !important; }
+  /* §55 주 · 월 무대: 주는 궤도 아래 일곱 칸, 월은 달력이 무대를 채운다(칸마다 들어가는 가장 큰 궤도) */
+  #main.pg-split.view-week .ow-days { margin: 6px 0 2px; }
+  #main.pg-split.view-month .om-wrap { flex: 1 1 0; min-height: 0; padding-bottom: 4px; }
+  #main.pg-split .om-sum { margin: 0 0 12px; font-size: 14px; }
+  #main.pg-split .om-grid { flex: 1 1 0; min-height: 0; grid-template-rows: repeat(var(--rows, 6), minmax(0, 1fr)); }
+  #main.pg-split .om-cell { container-type: size; justify-content: center; padding: 4px 2px; }
+  #main.pg-split .om-d { position: absolute; left: 8px; top: 6px; margin: 0; }
+  #main.pg-split .om-cell.today .om-d { left: 4px; }
+  #main.pg-split .om-o { width: max(24px, min(100cqw - 20px, 100cqh - 26px)); }
+  #main.pg-split .om-a { font-size: clamp(10px, 9cqw, 14px); }
 }

@@ -461,8 +461,10 @@ def api_range(conn, query, body):
     ndays = (d1 - d0).days + 1
     if ndays > RANGE_MAX_DAYS:
         raise ApiError(400, "기간은 최대 %d일까지입니다 (요청: %d일)" % (RANGE_MAX_DAYS, ndays))
-    with_spans = (query.get("spans") or ["0"])[0].strip() in ("1", "true", "yes")
-    log.debug("range %s~%s days=%d spans=%d", start, end, ndays, 1 if with_spans else 0)
+    spans_q = (query.get("spans") or ["0"])[0].strip()
+    lite = spans_q == "lite"                     # §55.4 월 달력의 궤도: 시각 · 분류만(프로그램 · 창 제목 없이)
+    with_spans = lite or spans_q in ("1", "true", "yes")
+    log.debug("range %s~%s days=%d spans=%s", start, end, ndays, spans_q if with_spans else "0")
 
     rules = _load_rules_locked()
     names = _load_names_locked()
@@ -472,7 +474,8 @@ def api_range(conn, query, body):
         r = compute_day(conn, date, now, rules, names)
         item = {"date": r.get("date", date), "window": r.get("window"), "summary": r.get("summary")}
         if with_spans:
-            item["spans"] = r.get("spans", [])
+            sp = r.get("spans", [])
+            item["spans"] = [{"start": x["start"], "end": x["end"], "category": x["category"]} for x in sp] if lite else sp
         days.append(item)
     return {
         "start": start,

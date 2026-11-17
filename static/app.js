@@ -3,14 +3,7 @@
   'use strict';
 
   // ------------------------------------------------------------ 상수
-  // 시간축 배율은 상수가 아니라 state.pxPerMin (DESIGN §14). 범위 0.2~6, 저장 키 worklog.pxPerMin
-  var PX_MIN = 0.2, PX_MAX = 6;
-  var ZOOM_KEY = 'worklog.pxPerMin';
-  var ZOOM_STEP_WHEEL = 1.15, ZOOM_STEP_BTN = 1.3;
-  var GUTTER = 48;        // 좌측 눈금 열 폭
-  var PAD_TOP = 14;
-  var PAD_BOTTOM = 14;
-  var RECT_PAD_RIGHT = 12;
+  // §55 직선 타임라인과 그 시간축 배율(§14)은 없앴다 — 궤도 확대는 아래 oz
   var DAY_REFRESH_MS = 30000;
   var SIDE_REFRESH_MS = 60000;   // §27 옆 판(할 일·메모·밤 일정) 다시 받기 — 포커스 없는 창만
   var STATUS_REFRESH_MS = 10000;
@@ -66,17 +59,16 @@
     night: null,      // /api/night 응답 (§19)
     popover: null,     // 열려 있는 팝오버 컨텍스트
     dayPending: false, // 팝오버 때문에 미뤄진 새로고침 여부
-    scrolledOnce: false,
     renderedAsToday: false, // 마지막 헤더 렌더 시점에 '오늘' 이었는지 (04:00 경계 감지용)
     sideLoaded: null,       // 투두·메모를 마지막으로 불러온 기준 날짜(sideDate) — 주·월 보기 04:00 경계 감지용
     // --- 2차: 보기 전환 (§11.3)
     view: 'day',          // 'day' | 'week' | 'month'
     range: null,          // /api/range 응답 (주·월 보기)
     rangePending: false,  // 팝오버 때문에 미뤄진 range 새로고침 여부
-    weekScrolledOnce: false,
-    // --- §14: 시간축 배율 (하루·주 보기 공용). zoomFit=true 면 렌더마다 컨테이너 높이에 맞춰 다시 계산
-    pxPerMin: 1,
-    zoomFit: true
+    // --- §55 궤도: 올린(손가락은 누른) 구간 {r: 고리, i: 구간}, 주 궤도에서 밝게 볼 날(고리 번호)
+    obHover: null,
+    obSel: null,
+    obDay: -1
   };
 
   // ------------------------------------------------------------ DOM 헬퍼
@@ -275,7 +267,6 @@
         state.dayPending = true;
         return;
       }
-      var dateChanged = state.date !== day.date;
       state.date = day.date;
       state.day = day;
       if (day.categories && day.categories.length) state.categories = themedCats(day.categories);
@@ -286,10 +277,9 @@
       if (day.status) { state.status = day.status; renderStatus(); }
       state.dayPending = false;
       renderDateHeader();
-      renderTimeline(dateChanged);
+      renderTimeline();
       renderSummary();
       renderUnknownTop();
-      renderLegend();
       loadStrip(false);                                             // §50 작은 궤도 줄(넓은 창)
       return day;
     }).catch(fail('하루 기록 불러오기 실패'));
@@ -316,9 +306,7 @@
       state.status = st;
       checkBuild(st.build);
       renderStatus();
-      if (state.view === 'week') { if (!state.popover) updateWeekNowLine(); return; }
-      if (state.view !== 'day') return;
-      if (isToday() && state.day && !state.popover) updateNowLine();
+      if (state.view !== 'month' && periodIncludesToday() && !state.popover && !oz.raf && !oz.drag && !oz.pinch) ozDetail();   // §55 위성(지금)을 따라 옮긴다
     }).catch(fail('상태 조회 실패'));
   }
 
@@ -529,27 +517,18 @@
     api('/api/drawer', { label: label, value: value }).then(done).catch(fail('저장 실패'));
   }
 
-  // ------------------------------------------------------------ 폰 화면 (§39.2 → §41): 한 장을 길게 + 오른쪽 세로 바
-  // 타임라인만 따로 화면이고, 나머지는 한 장에 차례로 놓인다. 주소의 #/<이름> 은 '어디를 보고 있나' 다 — 세로 바를 누르면 그 칸으로 간다.
-  // 배치는 CSS(≤559px)가 #main 의 pg-home / pg-timeline 클래스로 한다.
-  var PHONE_PAGES = ['today', 'timeline', 'todos', 'keeps', 'events', 'more', 'notes', 'night', 'drawer', 'notices', 'tools'];
+  // ------------------------------------------------------------ 폰 화면 (§39.2 → §41 → §55): 한 장을 길게 + 오른쪽 세로 바
+  // §55 '타임라인' 화면은 없다 — 맨 위 궤도가 곧 타임라인(하루 · 주 · 월). 주소의 #/<이름> 은 '어디를 보고 있나' 다 — 세로 바를 누르면 그 칸으로 간다.
+  var PHONE_PAGES = ['today', 'todos', 'keeps', 'events', 'more', 'notes', 'night', 'drawer', 'notices', 'tools'];
   var PHONE_ANCHOR = { today: 'phone-head', todos: 'card-todos', keeps: 'card-keeps', events: 'card-events', notes: 'card-notes', night: 'card-night',
                        drawer: 'card-drawer', notices: 'card-notices', tools: 'card-unknown', more: 'phone-more' };   // 칸의 맨 위가 되는 요소
   var RAIL_ORDER = ['today', 'todos', 'keeps', 'events', 'notes', 'night', 'drawer', 'notices', 'tools', 'more'];             // 한 장 안에서 놓이는 차례
-  // §49 PC 도 같은 화면 — 폭에 따라 배치만 다르다. 1100px 이상이면 나란히: 왼쪽은 무대(§50 큰 하루 궤도 — 세로 바의 '타임라인' 을 누르면 세로 타임라인), 오른쪽은 한 장
+  // §49 PC 도 같은 화면 — 폭에 따라 배치만 다르다. 1100px 이상이면 나란히: 왼쪽은 무대(§50 · §55 궤도), 오른쪽은 한 장
   var splitMQ = window.matchMedia ? window.matchMedia('(min-width: 1100px)') : null;
   function isSplit() { return !!(splitMQ && splitMQ.matches); }
-  function onTimelinePage() { return phonePage() === 'timeline'; }
   function phonePage() {
     var p = (location.hash || '').replace(/^#\/?/, '');
     return PHONE_PAGES.indexOf(p) >= 0 ? p : 'today';
-  }
-  function goPhonePage(p) {
-    if (location.hash === '#/' + p) applyPhonePage(); else location.hash = '/' + p;
-  }
-  function syncTimelineTop() {
-    var w = $('timeline-wrap');
-    if (w && !w.hidden) document.documentElement.style.setProperty('--tl-top', Math.round(w.getBoundingClientRect().top + window.scrollY) + 'px');
   }
   function phoneShown(id) { var el = $(id); return el && !el.hidden && el.getClientRects().length ? el : null; }
   // 세로 바: 지금 칸 표시(흰 날이 그 자리로 미끄러진다)
@@ -584,7 +563,6 @@
   }
   // 내려 보는 동안: 위 막대 바로 아래에 걸린 칸이 '지금 칸'
   function phoneSpy() {
-    if (onTimelinePage()) return;
     if (state.railLock && Date.now() < state.railLock) return;
     if (state.railPin) {
       if (Math.abs(window.scrollY - state.railPin.y) < 48) { if (state.railCur !== state.railPin.sec) markRail(state.railPin.sec); return; }
@@ -606,64 +584,66 @@
     try { history.replaceState(null, '', '#/' + cur); } catch (e) { /* 주소를 못 바꿔도 표시는 한다 */ }
   }
   function applyPhonePage() {
-    var split = isSplit(), p = phonePage(), m = $('main'), tl = p === 'timeline';
-    // 주·월 보기는 타임라인 화면 안에서만 — 다른 곳으로 가면 하루로 돌아온다
-    if (state.view !== 'day' && !tl && state.date) setView('day', state.date);
+    var split = isSplit(), p = phonePage(), m = $('main');
+    if (/^#\/?timeline$/.test(location.hash)) { try { history.replaceState(null, '', '#/today'); } catch (e) { /* 주소를 못 바꿔도 연다 */ } }   // §55 옛 '타임라인' 주소는 오늘로
     var wasHome = m.classList.contains('pg-home');
     m.classList.add('phone-pages');
+    m.classList.add('pg-home');                                 // §55 늘 한 장 — 맨 위 궤도가 곧 타임라인
     m.classList.toggle('pg-split', split);
-    m.classList.toggle('stage-tl', split && tl);                // §50 나란히: 무대가 세로 타임라인 — 오른쪽 한 장은 그대로 보인다
-    m.classList.toggle('pg-timeline', tl && !split);
-    m.classList.toggle('pg-home', !tl || split);
-    document.body.setAttribute('data-page', tl ? 'timeline' : 'home');
+    document.body.setAttribute('data-page', 'home');
     syncRail();
     markRail(p);
     renderPhoneHead();
-    if (tl) {
-      if (!split) window.scrollTo(0, 0);
-      requestAnimationFrame(function () {
-        syncTimelineTop();
-        // 숨어 있던 동안 폭이 0 이었으므로 다시 재 그리고 지금 시각으로
-        if (state.view === 'day' && state.day) { state.scrolledOnce = false; renderTimeline(false); }
-      });
-    } else {
-      if (state.tileWant === p && PHONE_ANCHOR[p]) openTile(PHONE_ANCHOR[p], true);    // 세로 바로 타임라인에서 넘어온 칸은 펼쳐서 보여 준다
-      state.tileWant = null;
-      phoneScrollTo(p, wasHome);
-      loadStrip(false);                                           // §50 무대 아래 작은 궤도 줄
-    }
+    phoneScrollTo(p, wasHome);
+    loadStrip(false);                                           // §50 무대 아래 작은 궤도 줄
   }
   function longDate(str) { var d = parseDate(str); return (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + WEEK[d.getDay()] + '요일'; }
+  // 화면 머리의 제목 = 보는 기간(§55.1): 오늘 · 어제 · 11월 3일 / 이번 주 · 지난 주 · 11/3 주 / 이번 달 · 10월
+  function periodTitle() {
+    var v = state.view, d = state.date, t = todayStr();
+    if (!d) return '오늘';
+    if (v === 'week') {
+      var ws = weekStartOf(d), tw = weekStartOf(t);
+      return ws === tw ? '이번 주' : ws === shiftDate(tw, -7) ? '지난 주' : ws === shiftDate(tw, 7) ? '다음 주' : mdStr(ws) + ' 주';
+    }
+    if (v === 'month') {
+      var a = parseDate(d), b = parseDate(t);
+      if (a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth()) return '이번 달';
+      return (a.getFullYear() !== b.getFullYear() ? a.getFullYear() + '년 ' : '') + (a.getMonth() + 1) + '월';
+    }
+    if (d === t) return '오늘';
+    return d === shiftDate(t, -1) ? '어제' : d === shiftDate(t, 1) ? '내일' : (parseDate(d).getMonth() + 1) + '월 ' + parseDate(d).getDate() + '일';
+  }
   function renderPhoneHead() {
     if (!$('ph-title')) return;
-    var tl = onTimelinePage(), title = tl ? '타임라인' : '오늘', sub = '';
-    if (!tl && state.date && !isToday()) {
-      var t = todayStr();
-      title = state.date === shiftDate(t, -1) ? '어제' : state.date === shiftDate(t, 1) ? '내일' : (parseDate(state.date).getMonth() + 1) + '월 ' + parseDate(state.date).getDate() + '일';
-    }
-    if (state.date) sub = state.view === 'day' ? longDate(state.date) : ($('date-label').textContent || '');
-    $('ph-title').textContent = title;
+    var sub = '';
+    if (state.date) sub = state.view === 'day' ? longDate(state.date) : ($('date-label').textContent || '').replace(/ · 이번 (주|달)$/, '');
+    $('ph-title').textContent = periodTitle();
     $('ph-sub').textContent = sub;
     $('ph-sub').parentNode.hidden = !sub;          // 설명 줄이 없으면 그 높이도 없앤다
     var pick = state.view === 'day';
     $('ph-date').hidden = !pick;
     if (pick && state.date) $('ph-date').value = state.date;
-    $('ph-ctl').hidden = !tl;
+    $('ph-ctl').hidden = false;                    // §55 하루 · 주 · 월은 늘 보인다
     Array.prototype.forEach.call(document.querySelectorAll('#ph-seg button'), function (b) { b.classList.toggle('on', b.getAttribute('data-view') === state.view); });
   }
-  // 히어로: 큰 숫자 하나(활동 시간). 나머지 숫자는 '자세히' 를 눌러야 나온다(§23 요약 띠가 펼쳐진다)
-  function renderPhoneHero() {
+  // 히어로(§42 · §50 · §55): 궤도의 가운데 — 하루는 활동 시간 · 출근 → 퇴근 · 분류별 시간, 주는 그 주의 합(renderWeekCenter). 월은 달력 위 한 줄
+  function heroNum(sec) {
     var num = $('hero-num');
-    if (!num) return;
+    clear(num);
+    if (sec === null || sec === undefined) { num.textContent = '—'; return; }
+    var m = mins(sec), hh = Math.floor(m / 60), mm = m % 60;
+    if (hh) { num.appendChild(document.createTextNode(String(hh))); num.appendChild(h('small', { text: '시간' })); }
+    num.appendChild(document.createTextNode(String(mm))); num.appendChild(h('small', { text: '분' }));
+  }
+  function renderPhoneHero() {
+    if (!$('hero-num')) return;
+    if (state.view === 'week') { renderWeekCenter(); return; }
+    if (state.view !== 'day') return;
     var sm = (state.day && state.day.summary) || {};
     var has = function (v) { return v !== null && v !== undefined; };
-    clear(num);
-    if (!has(sm.active_sec)) num.textContent = '—';
-    else {
-      var m = mins(sm.active_sec), hh = Math.floor(m / 60), mm = m % 60;
-      if (hh) { num.appendChild(document.createTextNode(String(hh))); num.appendChild(h('small', { text: '시간' })); }
-      num.appendChild(document.createTextNode(String(mm))); num.appendChild(h('small', { text: '분' }));
-    }
+    $('orbit-l').textContent = '활동';
+    heroNum(has(sm.active_sec) ? sm.active_sec : null);
     $('hero-attend').textContent = has(sm.first_active)
       ? hm(sm.first_active) + ' 출근 · ' + (sm.in_progress ? '진행 중' : (has(sm.last_active) ? hm(sm.last_active) + ' 퇴근' : '—'))
       : '기록 없음';
@@ -673,10 +653,10 @@
     var tp = todoProgress();
     if (tp.total) parts.push('할 일 ' + tp.done + '/' + tp.total);
     $('hero-foot').textContent = parts.join(' · ');
-    renderOrbitInside(sm, parts);
+    renderOrbitInside(sm, parts, state.day && state.day.night);
   }
-  // §50 큰 궤도의 안: 카테고리별 시간(많은 순, 범례를 겸한다) + 한 줄. 줄에 올리면 그 분류의 구간만 밝게
-  function renderOrbitInside(sm, parts) {
+  // §50 큰 궤도의 안: 분류별 시간(많은 순, 범례를 겸한다) + 한 줄. 줄에 올리면 그 분류의 구간만 밝게
+  function renderOrbitInside(sm, parts, night) {
     var ul = $('ob-cats');
     if (!ul) return;
     var by = sm.by_category || {};
@@ -695,111 +675,381 @@
       });
       orbitMark();
     }
-    var night = state.day && state.day.night;
     var bits = parts.map(function (t) { return /^최장 집중 /.test(t) ? '최장 집중 ' + fmtHM(sm.focus_longest_sec) : t; });   // 고리 안은 자리가 넉넉하다 — 658분 대신 10시간 58분
     $('ob-stats').textContent = bits.concat(night ? [nightText(night).replace('밤 · ', '밤 ')] : []).join(' · ');
   }
-  // 하루 궤도(§42, 옛 하루 띠 §38.4): 하루를 24시간 원으로 — 맨 위가 0시, 시계 방향.
-  // 바깥 고리 = 타임라인(카테고리 색), 안쪽 가는 고리 = 오늘 할 일 진행률, 작은 위성 = 지금. 로고(가운데 원 + 고리 + 위성)와 같은 그림이다.
   function todoProgress() {
     var t = state.todos || {}, today = t.today || [];
     var done = today.filter(function (x) { return x.done; }).length;
     return { done: done, total: today.length + (t.carried || []).length };
   }
-  // 치수: 작은 것(좁은 창 맨 위, viewBox 240) / 큰 것(§50 넓은 창의 무대, viewBox 600 — 매 시 눈금 · 3시간마다 숫자 · 밤 계획 호)
-  var OB_SMALL = { box: 240, R: 96, R2: 80, hrR: 113, hrDy: 3.2, hours: [0, 6, 12, 18], now: 5.5, min: 0.6 };
-  var OB_BIG = { box: 600, R: 244, R2: 219, hrR: 288, hrDy: 4, hours: [0, 3, 6, 9, 12, 15, 18, 21], now: 9, min: 0.3, tick: [268, 272, 276], nightR: 262 };
-  function orbitPt(r, deg, c) { if (c === undefined) c = 120; var a = (deg - 90) * Math.PI / 180; return [c + r * Math.cos(a), c + r * Math.sin(a)]; }
-  function orbitArc(r, d0, d1, c) {
-    var p0 = orbitPt(r, d0, c), p1 = orbitPt(r, d1, c);
-    return 'M' + p0[0].toFixed(2) + ' ' + p0[1].toFixed(2) + 'A' + r + ' ' + r + ' 0 ' + (d1 - d0 > 180 ? 1 : 0) + ' 1 ' + p1[0].toFixed(2) + ' ' + p1[1].toFixed(2);
+
+  // ------------------------------------------------------------ §55 궤도 = 타임라인 (하루 · 주 · 월이 다 원, 휠로 궤도 확대)
+  // 하루(§42 · §50): 24시간 원 — 맨 위가 0시, 시계 방향. 바깥 고리 = 기록(분류 색), 안쪽 가는 고리 = 할 일 진행률, 위성 = 지금, 고리 바깥 점선 = 밤 계획.
+  // 주(§55.3): 같은 원에 날마다 고리 하나 — 바깥이 월. 월(§55.4)은 달력 칸마다 작은 궤도(renderMonthGrid).
+  // 좌표는 viewBox 600(가운데 300). 확대는 viewBox 만 바꾼다(oz) — 글자 · 가는 선은 CSS 변수 --u 로 화면에서 같은 크기, 고리 굵기는 --kw(= 1/√배율).
+  var OB = { c: 300, R: 244, R2: 219, band: 22, min: 0.3 };
+  var OW = { r0: 254, pitch: 18, band: 13 };                 // 주: 바깥(월) 고리 반지름 · 고리 사이 · 굵기 — 안쪽(일) 고리 146, 가운데에 그 주의 합
+  var OZ_MAX = 24;
+  var XLINK = 'http://www.w3.org/1999/xlink';
+  var oz = { k: 1, cx: 300, cy: 300, tk: 1, tcx: 300, tcy: 300, raf: 0, s0: 1, W: 600, H: 600, key: '', bucket: 0, detailAt: 0, detailT: 0,
+             drag: null, pts: {}, pinch: null, noClick: 0, ptype: 'mouse' };
+  var orb = { kind: '', rings: [] };                          // 지금 그린 궤도 — 고리마다 { r, band, spans, ws, date, today, night }
+  function orbitPt(r, deg, c) { if (c === undefined) c = OB.c; var a = (deg - 90) * Math.PI / 180; return [c + r * Math.cos(a), c + r * Math.sin(a)]; }
+  // back: 거꾸로(반시계) — 아래 반쪽의 글자가 뒤집히지 않게
+  function orbitArc(r, d0, d1, c, back) {
+    var p0 = orbitPt(r, back ? d1 : d0, c), p1 = orbitPt(r, back ? d0 : d1, c);
+    return 'M' + p0[0].toFixed(2) + ' ' + p0[1].toFixed(2) + 'A' + r + ' ' + r + ' 0 ' + (d1 - d0 > 180 ? 1 : 0) + ' ' + (back ? 0 : 1) + ' ' + p1[0].toFixed(2) + ' ' + p1[1].toFixed(2);
   }
-  function renderPhoneStrip(spans, startHour, endHour, today, now) {
+  function degOf(ts, ws) { var hh = (state.config.day_start_hour || 4) + (ts - ws) / 3600; return (((hh % 24) + 24) % 24) / 24 * 360; }
+  function spanDeg(sp, ws) {
+    var a = degOf(sp.start, ws), b = degOf(sp.end, ws);
+    if (b < a) b += 360;                                        // 자정을 넘는 구간
+    if (b - a < OB.min) b = a + OB.min;
+    if (b - a > 359.9) b = a + 359.9;
+    return [a, b];
+  }
+  function renderOrbit() {
+    if (state.view === 'week') renderWeekOrbit();
+    else if (state.view === 'month') renderMonthGrid();
+    else renderTimeline();
+  }
+  // 고리들을 그린다 — 고리마다 { r, band, spans, ws(그 날 window.start), date, today, night }. 눈금 · 이름 · 위성은 ozDetail 이 배율에 맞춰
+  function drawOrbit(kind, rings) {
     var svg = $('orbit-svg');
     if (!svg) return;
-    tl.strip = { spans: spans, startHour: startHour, endHour: endHour, today: today, now: now };
+    var key = kind + ':' + (kind === 'week' ? weekStartOf(state.date || todayStr()) : (state.date || ''));
+    if (key !== oz.key) {                                       // 날짜 · 보기가 바뀌면 전체로(배율은 저장하지 않는다)
+      oz.key = key;
+      ozGo(1, 300, 300, true);
+      state.obHover = null; state.obSel = null;
+      $('ps-tap').classList.remove('hov');
+    }
+    orb.kind = kind; orb.rings = rings;
     clear(svg);
-    var big = isSplit(), G = big ? OB_BIG : OB_SMALL, c = G.box / 2, R = G.R, R2 = G.R2;
-    svg.setAttribute('viewBox', '0 0 ' + G.box + ' ' + G.box);
-    svg.setAttribute('class', big ? 'ob-big' : '');
-    var deg = function (ts) { return (((hourOfTs(ts) % 24) + 24) % 24) / 24 * 360; };
-    if (G.tick) {
-      for (var th = 0; th < 24; th++) {
-        var t0 = orbitPt(G.tick[0], th * 15, c), t1 = orbitPt(th % 3 ? G.tick[1] : G.tick[2], th * 15, c);
-        svg.appendChild(s('line', { x1: t0[0].toFixed(1), y1: t0[1].toFixed(1), x2: t1[0].toFixed(1), y2: t1[1].toFixed(1), class: 'ob-tick' + (th % 3 ? '' : ' maj') }));
-      }
-    }
-    svg.appendChild(s('circle', { cx: c, cy: c, r: R, class: 'ob-track' }));
-    svg.appendChild(s('circle', { cx: c, cy: c, r: R2, class: 'ob-track2' }));
-    var night = G.nightR && state.day && state.day.night;          // §19 밤 계획: 고리 바깥의 점선 호(큰 궤도만)
-    if (night) {
-      var na = Math.max(night.start, tl.windowStart), nb = Math.min(night.end, nightShowEndTs(tl.windowStart));
-      if (nb > na) {
-        var n0 = deg(na), n1 = deg(nb);
-        if (n1 < n0) n1 += 360;
-        svg.appendChild(s('path', { d: orbitArc(G.nightR, n0, n1, c), class: 'ob-night' }));
-      }
-    }
-    (spans || []).forEach(function (sp, i) {
-      if (sp.category === 'absent') return;                       // 부재(오기 전)는 빈칸으로 둔다
-      var a = deg(sp.start), b = deg(sp.end);
-      if (b < a) b += 360;                                        // 자정을 넘는 구간
-      if (b - a < G.min) b = a + G.min;
-      if (b - a > 359.9) b = a + 359.9;
-      svg.appendChild(s('path', { d: orbitArc(R, a, b, c), class: 'ob-arc', stroke: catOf(sp.category).color, 'data-i': i, 'data-cat': sp.category }));
+    svg.setAttribute('class', 'ob-big' + (kind === 'week' ? ' ow' : ''));
+    $('ps-tap').classList.toggle('wk', kind === 'week');           // 주는 가운데가 좁다 — 글을 줄인다
+    var under = s('g', { class: 'ob-under' }), base = s('g', { class: 'ob-base' });
+    rings.forEach(function (rg) { base.appendChild(s('circle', { cx: OB.c, cy: OB.c, r: rg.r, class: 'ob-track' + (kind === 'week' && rg.today ? ' today' : '') })); });
+    if (kind === 'day') base.appendChild(s('circle', { cx: OB.c, cy: OB.c, r: OB.R2, class: 'ob-track2' }));
+    rings.forEach(function (rg, ri) {
+      rg.spans.forEach(function (sp, i) {
+        if (sp.category === 'absent') return;                  // 부재(오기 전 · 간 뒤)는 빈칸으로 둔다
+        var ab = spanDeg(sp, rg.ws);
+        base.appendChild(s('path', { d: orbitArc(rg.r, ab[0], ab[1]), class: 'ob-arc', stroke: catOf(sp.category).color, 'data-r': ri, 'data-i': i, 'data-cat': sp.category }));
+      });
     });
-    var tp = todoProgress();
-    if (tp.total && tp.done) {
-      svg.appendChild(tp.done >= tp.total ? s('circle', { cx: c, cy: c, r: R2, class: 'ob-prog' })
-                                          : s('path', { d: orbitArc(R2, 0, tp.done / tp.total * 360, c), class: 'ob-prog' }));
+    if (kind === 'day') {
+      var tp = todoProgress();
+      if (tp.total && tp.done) base.appendChild(tp.done >= tp.total ? s('circle', { cx: OB.c, cy: OB.c, r: OB.R2, class: 'ob-prog' })
+                                                                   : s('path', { d: orbitArc(OB.R2, 0, tp.done / tp.total * 360), class: 'ob-prog' }));
     }
-    G.hours.forEach(function (hh) {
-      var p = orbitPt(G.hrR, hh * 15, c);
-      svg.appendChild(s('text', { x: p[0].toFixed(1), y: (p[1] + G.hrDy).toFixed(1), class: 'ob-hr', 'text-anchor': 'middle', text: String(hh) }));
-    });
-    if (today && now) {
-      var q = orbitPt(R, deg(now), c);
-      svg.appendChild(s('circle', { cx: q[0].toFixed(2), cy: q[1].toFixed(2), r: G.now, class: 'ob-now' }));
-    }
+    svg.appendChild(under);
+    svg.appendChild(base);
+    svg.appendChild(s('g', { class: 'ob-detail' }));
+    if (ozGeom()) ozApply();
+    ozDetail();
     orbitMark();
   }
-  // §50 큰 궤도 = 타임라인: 구간에 올리면 가운데가 그 구간으로 바뀌고 나머지는 흐려진다. 누르면 분류 팝오버(세로 타임라인과 같은 것)
+  // 원 r 이 사각형 안에 있는 각도 구간들 [[a, b], …] (도 · 0 = 맨 위 · 시계 방향). 변과 만나는 각을 풀어서 나눈다
+  function ringVisible(r, x0, y0, x1, y1) {
+    var c = OB.c, cuts = [0, 360], R2D = 180 / Math.PI, out = [];
+    var add = function (deg) { cuts.push(((deg % 360) + 360) % 360); };
+    [x0, x1].forEach(function (X) { var t = (X - c) / r; if (t > -1 && t < 1) { var a = Math.asin(t) * R2D; add(a); add(180 - a); } });
+    [y0, y1].forEach(function (Y) { var t = (c - Y) / r; if (t > -1 && t < 1) { var a = Math.acos(t) * R2D; add(a); add(-a); } });
+    cuts.sort(function (p, q) { return p - q; });
+    for (var i = 0; i + 1 < cuts.length; i++) {
+      var a = cuts[i], b = cuts[i + 1];
+      if (b - a < 1e-6) continue;
+      var p = orbitPt(r, (a + b) / 2);
+      if (!(p[0] >= x0 && p[0] <= x1 && p[1] >= y0 && p[1] <= y1)) continue;
+      if (out.length && Math.abs(out[out.length - 1][1] - a) < 1e-6) out[out.length - 1][1] = b; else out.push([a, b]);
+    }
+    if (out.length > 1 && out[0][0] < 1e-6 && out[out.length - 1][1] > 360 - 1e-6) { var last = out.pop(); out[0] = [last[0] - 360, out[0][1]]; }   // 0° 를 넘어 이어지는 조각
+    return out;
+  }
+  function visRun(iv, a, b) {                                   // 호 [a, b] 중 보이는 가장 긴 조각
+    var best = null;
+    iv.forEach(function (x) {
+      [-360, 0, 360].forEach(function (o) {
+        var lo = Math.max(a, x[0] + o), hi = Math.min(b, x[1] + o);
+        if (hi > lo && (!best || hi - lo > best[1] - best[0])) best = [lo, hi];
+      });
+    });
+    return best;
+  }
+  // 배율에 따라 다시 그리는 것(보이는 곳만): 눈금 · 시각 · 구간 이름 · 주의 요일과 살 · 밤 계획 · 위성(지금)
+  function ozDetail() {
+    var svg = $('orbit-svg'), g = svg && svg.querySelector('.ob-detail'), under = svg && svg.querySelector('.ob-under');
+    if (oz.detailT) { clearTimeout(oz.detailT); oz.detailT = 0; }
+    if (!g || !under || !orb.rings.length || state.view === 'month') return;
+    oz.detailAt = Date.now();
+    clear(g); clear(under);
+    var k = oz.k, kw = 1 / Math.sqrt(k), sc = oz.s0 * k, u = 1 / (k * Math.min(oz.s0, 1)), fs = Math.min(oz.s0, 1) / oz.s0;
+    var vw = oz.W / k, vh = oz.H / k, vx = oz.cx - vw / 2, vy = oz.cy - vh / 2, mg = 24 / sc;
+    var inView = function (p) { return p[0] >= vx - mg && p[0] <= vx + vw + mg && p[1] >= vy - mg && p[1] <= vy + vh + mg; };
+    var week = orb.kind === 'week', outer = orb.rings[0], inner = orb.rings[orb.rings.length - 1];
+    var Rout = outer.r + outer.band / 2 * kw, Rin = inner.r - inner.band / 2 * kw;
+    var defs = s('defs');
+    g.appendChild(defs);
+    // 눈금 · 시각: 확대할수록 촘촘하게(1시간 → 30분 → 10분 → 5분 → 1분)
+    var ppm = 2 * Math.PI * outer.r / 1440 * sc, step = 60, lstep = 180;
+    if (k >= 1.5) {
+      step = [60, 30, 10, 5, 1].filter(function (x) { return x * ppm >= 10; }).pop() || 60;
+      lstep = [180, 60, 30, 10, 5].filter(function (x) { return x * ppm >= 64; }).pop() || 180;
+      if (lstep < step) lstep = step;
+    }
+    var r0 = Rout + 13 / k, rL = Rout + 33 / k;
+    for (var mm = 0; mm < 1440; mm += step) {
+      var dg = mm / 4, maj = mm % lstep === 0, p0 = orbitPt(r0, dg);
+      if (week && maj) {                                        // 주: 안쪽 고리에서 바깥 고리까지 가는 살 — 같은 시각이 한 줄
+        var sa = orbitPt(Rin - 3 / k, dg), sb = orbitPt(Rout + 3 / k, dg), seen = false;
+        for (var q = 0; q <= 4 && !seen; q++) seen = inView([sa[0] + (sb[0] - sa[0]) * q / 4, sa[1] + (sb[1] - sa[1]) * q / 4]);
+        if (seen) under.appendChild(s('line', { x1: sa[0].toFixed(2), y1: sa[1].toFixed(2), x2: sb[0].toFixed(2), y2: sb[1].toFixed(2), class: 'ow-spoke' }));
+      }
+      if (!inView(p0)) continue;
+      var p1 = orbitPt(r0 + (maj ? 8 : 4) / k, dg);
+      g.appendChild(s('line', { x1: p0[0].toFixed(2), y1: p0[1].toFixed(2), x2: p1[0].toFixed(2), y2: p1[1].toFixed(2), class: 'ob-tick' + (maj ? ' maj' : '') }));
+      if (!maj) continue;
+      var pl = orbitPt(rL, dg);
+      g.appendChild(s('text', { x: pl[0].toFixed(2), y: pl[1].toFixed(2), class: 'ob-hr', 'text-anchor': 'middle', 'dominant-baseline': 'central',
+        text: lstep >= 60 ? String(mm / 60) : pad2(Math.floor(mm / 60)) + ':' + pad2(mm % 60) }));
+    }
+    // 구간 이름: 고리 위에 호를 따라, 보이는 가장 긴 조각의 가운데에. 아래 반쪽은 거꾸로 — 글자가 뒤집히지 않게
+    var ivs = orb.rings.map(function (rg) { return ringVisible(rg.r, vx, vy, vx + vw, vy + vh); });
+    var fpx = week ? 10.5 : 12;
+    orb.rings.forEach(function (rg, ri) {
+      if (rg.band * kw * sc < fpx + 3) return;                 // 고리가 글자보다 얇으면 쓰지 않는다(확대하면 생긴다)
+      rg.spans.forEach(function (sp, i) {
+        if (sp.category === 'absent') return;
+        var ab = spanDeg(sp, rg.ws), run = visRun(ivs[ri], ab[0], ab[1]);
+        if (!run) return;
+        var len = (run[1] - run[0]) * Math.PI / 180 * rg.r * sc;
+        if (len < 30) return;
+        var cat = catOf(sp.category), txt = truncateToWidth(spanLabel(sp) || cat.name, len - 14, fpx);
+        if (txt.replace('…', '').length < 2) return;
+        var mid = (((run[0] + run[1]) / 2) % 360 + 360) % 360, id = 'obl-' + ri + '-' + i;
+        defs.appendChild(s('path', { id: id, d: orbitArc(rg.r, run[0], run[1], OB.c, mid > 90 && mid < 270) }));
+        var tp = s('textPath', { href: '#' + id, startOffset: '50%', text: txt });
+        tp.setAttributeNS(XLINK, 'xlink:href', '#' + id);
+        g.appendChild(s('text', { class: 'ob-lbl', fill: textColorFor(cat.color), 'text-anchor': 'middle', 'dominant-baseline': 'central',
+          style: 'font-size:calc(' + (fpx * fs).toFixed(3) + 'px * var(--u))' }, [tp]));
+      });
+    });
+    // 주: 고리마다 요일 — 맨 위(0시)가 보이면 거기, 아니면 보이는 가장 긴 조각의 첫머리
+    if (week) orb.rings.forEach(function (rg, ri) {
+      var top = orbitPt(rg.r, 0), dg = 0;
+      if (!(top[0] >= vx && top[0] <= vx + vw && top[1] >= vy && top[1] <= vy + vh)) {
+        var best = null;
+        ivs[ri].forEach(function (x) { if (!best || x[1] - x[0] > best[1] - best[0]) best = x; });
+        if (!best) return;
+        dg = best[0] + Math.min((best[1] - best[0]) / 2, 16 / (rg.r * sc) * 180 / Math.PI);
+      }
+      var p = orbitPt(rg.r, dg);
+      g.appendChild(s('text', { x: p[0].toFixed(2), y: p[1].toFixed(2), class: 'ow-lbl' + (rg.today ? ' today' : ''), 'text-anchor': 'middle', 'dominant-baseline': 'central',
+        'data-r': ri, text: WEEK[parseDate(rg.date).getDay()] }));
+    });
+    // 밤 계획(§19): 그 날 고리 바깥의 점선 호
+    orb.rings.forEach(function (rg) {
+      var n = rg.night;
+      if (!n) return;
+      var a = Math.max(n.start, rg.ws), b = Math.min(n.end, nightShowEndTs(rg.ws));
+      if (!(b > a)) return;
+      var d0 = degOf(a, rg.ws), d1 = degOf(b, rg.ws);
+      if (d1 < d0) d1 += 360;
+      var rn = rg.r + rg.band / 2 * kw + (week ? (OW.pitch - OW.band * kw) / 2 : 7 / k);
+      g.appendChild(s('path', { d: orbitArc(rn, d0, d1), class: 'ob-night' }));
+    });
+    // 위성 = 지금
+    var now = nowTs();
+    orb.rings.forEach(function (rg) {
+      if (!rg.today || now < rg.ws || now > rg.ws + 86400) return;
+      var q = orbitPt(rg.r, degOf(now, rg.ws));
+      g.appendChild(s('circle', { cx: q[0].toFixed(2), cy: q[1].toFixed(2), r: ((week ? 6 : 8) * u).toFixed(3), class: 'ob-now' }));
+    });
+    orbitMark();
+  }
+
+  // ---- 확대 · 옮기기 (§55.5) — 원(정사각형 .orbit)은 상자 가운데, 그림(svg)은 상자 전체. s0 = 원 한 변(px) / 600
+  function ozGeom() {
+    var box = $('orbit-box'), orbit = $('ps-tap'), svg = $('orbit-svg');
+    if (!box || !orbit || !svg) return false;
+    var bw = box.clientWidth, bh = box.clientHeight, sq = orbit.clientWidth;
+    if (!(bw > 0 && bh > 0 && sq > 0)) return false;
+    oz.s0 = sq / 600; oz.W = 600 * bw / sq; oz.H = 600 * bh / sq;
+    svg.style.left = -orbit.offsetLeft + 'px'; svg.style.top = -orbit.offsetTop + 'px';
+    svg.style.width = bw + 'px'; svg.style.height = bh + 'px';
+    orbit.style.setProperty('--ox', orbit.offsetLeft + 'px');    // 확대한 동안의 구간 칸을 원이 아니라 상자 모서리에 붙인다
+    orbit.style.setProperty('--oy', orbit.offsetTop + 'px');
+    return true;
+  }
+  function ozApply() {
+    var svg = $('orbit-svg'), box = $('orbit-box');
+    if (!svg || !box) return;
+    var k = oz.k, vw = oz.W / k, vh = oz.H / k, zoomed = k > 1.02;
+    svg.setAttribute('viewBox', (oz.cx - vw / 2).toFixed(3) + ' ' + (oz.cy - vh / 2).toFixed(3) + ' ' + vw.toFixed(3) + ' ' + vh.toFixed(3));
+    svg.style.setProperty('--kw', (1 / Math.sqrt(k)).toFixed(4));
+    svg.style.setProperty('--u', (1 / (k * Math.min(oz.s0, 1))).toFixed(4));
+    if (box.classList.contains('zoomed') !== zoomed) { box.classList.toggle('zoomed', zoomed); $('oz-all').hidden = !zoomed; }
+  }
+  function ozClamp(k, cx, cy) {                                 // 원(600 정사각형) 밖으로는 옮기지 않는다
+    k = Math.min(OZ_MAX, Math.max(1, k));
+    var vw = oz.W / k, vh = oz.H / k;
+    return { k: k, cx: vw >= 600 ? 300 : Math.min(600 - vw / 2, Math.max(vw / 2, cx)), cy: vh >= 600 ? 300 : Math.min(600 - vh / 2, Math.max(vh / 2, cy)) };
+  }
+  // 배율 k · 가운데(cx, cy)로. instant 가 아니면 부드럽게(60분의 1초마다 30% 씩) 따라간다
+  function ozGo(k, cx, cy, instant) {
+    var t = ozClamp(k, cx, cy);
+    oz.tk = t.k; oz.tcx = t.cx; oz.tcy = t.cy;
+    if (instant) {
+      if (oz.raf) { cancelAnimationFrame(oz.raf); oz.raf = 0; }
+      oz.k = t.k; oz.cx = t.cx; oz.cy = t.cy;
+      ozApply(); ozDetailSoon();
+      return;
+    }
+    if (!oz.raf) { oz.last = performance.now(); oz.raf = requestAnimationFrame(ozTick); }
+  }
+  function ozTick() {
+    oz.raf = 0;
+    var t = performance.now(), dt = Math.min(250, Math.max(1, t - (oz.last || t)));
+    oz.last = t;
+    var f = 1 - Math.pow(0.7, dt / 16.7), lk = Math.log(oz.k), tk = Math.log(oz.tk);   // 틀이 느려도(가려진 창) 같은 시간에 닿는다
+    var nk = Math.exp(lk + (tk - lk) * f), ncx = oz.cx + (oz.tcx - oz.cx) * f, ncy = oz.cy + (oz.tcy - oz.cy) * f;
+    var done = Math.abs(tk - Math.log(nk)) < 0.004 && Math.abs(oz.tcx - ncx) * oz.s0 * nk < 0.5 && Math.abs(oz.tcy - ncy) * oz.s0 * nk < 0.5;
+    if (done) { nk = oz.tk; ncx = oz.tcx; ncy = oz.tcy; }
+    oz.k = nk; oz.cx = ncx; oz.cy = ncy;
+    ozApply();
+    var b = Math.round(Math.log(nk) / Math.LN2 * 2);            // √2 배마다 눈금 · 이름을 다시
+    if (done || (b !== oz.bucket && Date.now() - oz.detailAt > 120)) { oz.bucket = b; ozDetail(); }
+    if (!done) oz.raf = requestAnimationFrame(ozTick);
+  }
+  function ozDetailSoon() { if (!oz.detailT) oz.detailT = setTimeout(function () { oz.detailT = 0; ozDetail(); }, 80); }
+  function ozReset(instant) { ozGo(1, 300, 300, instant); }
+  function ozFrac(x, y) { var r = $('orbit-svg').getBoundingClientRect(); return [(x - r.left) / (r.width || 1), (y - r.top) / (r.height || 1)]; }
+  function ozAt(fr, k, cx, cy) { var vw = oz.W / k, vh = oz.H / k; return [cx - vw / 2 + fr[0] * vw, cy - vh / 2 + fr[1] * vh]; }      // 그림 위 비율 → viewBox 좌표
+  function ozKeep(p, fr, k) { var vw = oz.W / k, vh = oz.H / k; return [p[0] - fr[0] * vw + vw / 2, p[1] - fr[1] * vh + vh / 2]; }    // p 가 fr 자리에 남는 가운데
+  // 휠(트랙패드 집기 = Ctrl+휠): 마우스가 있는 곳을 중심으로
+  function ozWheel(e) {
+    if (state.view === 'month' || !orb.rings.length) return;
+    var dy = e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 100 : 1);
+    if (!dy) return;
+    if (!isSplit() && oz.tk <= 1.001 && (dy > 0 || window.scrollY > 2)) return;   // 한 장(폰 · 좁은 창): 전체일 때 아래로 굴리면 · 내려가 있으면 페이지가 움직인다
+    e.preventDefault();
+    var fr = ozFrac(e.clientX, e.clientY), p = ozAt(fr, oz.tk, oz.tcx, oz.tcy);
+    var nk = Math.min(OZ_MAX, Math.max(1, oz.tk * Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.0022)))), c = ozKeep(p, fr, nk);
+    ozGo(nk, c[0], c[1]);
+  }
+  // 끌어서 옮기기(확대한 동안) · 두 손가락으로 벌리기
+  function ozDown(e) {
+    oz.ptype = e.pointerType || 'mouse';
+    if (state.view === 'month' || (e.target.closest && e.target.closest('button'))) return;
+    if (oz.ptype === 'mouse') { if (e.button !== 0) return; oz.pts = {}; }
+    oz.pts[e.pointerId] = [e.clientX, e.clientY];
+    var ids = Object.keys(oz.pts);
+    if (ids.length === 2) {
+      var a = oz.pts[ids[0]], b = oz.pts[ids[1]], mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      oz.pinch = { d0: Math.max(10, Math.hypot(a[0] - b[0], a[1] - b[1])), k0: oz.k, p: ozAt(ozFrac(mid[0], mid[1]), oz.k, oz.cx, oz.cy) };
+      oz.drag = null;
+      return;
+    }
+    if (ids.length === 1 && oz.k > 1.001) oz.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, cx: oz.cx, cy: oz.cy, moved: false };
+  }
+  function ozMove(e) {
+    if (!oz.pts[e.pointerId]) return;
+    oz.pts[e.pointerId] = [e.clientX, e.clientY];
+    if (oz.pinch) {
+      var ids = Object.keys(oz.pts);
+      if (ids.length < 2) return;
+      var a = oz.pts[ids[0]], b = oz.pts[ids[1]], mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      var nk = Math.min(OZ_MAX, Math.max(1, oz.pinch.k0 * Math.hypot(a[0] - b[0], a[1] - b[1]) / oz.pinch.d0)), c = ozKeep(oz.pinch.p, ozFrac(mid[0], mid[1]), nk);
+      oz.noClick = Date.now() + 400;
+      ozGo(nk, c[0], c[1], true);
+      return;
+    }
+    var dr = oz.drag;
+    if (!dr || dr.id !== e.pointerId) return;
+    if (oz.ptype === 'mouse' && !(e.buttons & 1)) { ozUp(e); return; }       // 상자 밖에서 단추를 뗐다
+    var dx = e.clientX - dr.x, dy = e.clientY - dr.y;
+    if (!dr.moved && Math.abs(dx) + Math.abs(dy) < 5) return;
+    if (!dr.moved) {
+      dr.moved = true;
+      $('orbit-box').classList.add('grabbing');
+      try { $('orbit-box').setPointerCapture(e.pointerId); } catch (err) { /* 잡지 못해도 옮긴다 */ }
+    }
+    var sc = oz.s0 * oz.k;
+    ozGo(oz.k, dr.cx - dx / sc, dr.cy - dy / sc, true);
+  }
+  function ozUp(e) {
+    delete oz.pts[e.pointerId];
+    var left = Object.keys(oz.pts);
+    if (oz.pinch) {
+      if (left.length < 2) {
+        oz.pinch = null; oz.noClick = Date.now() + 400;
+        if (left.length === 1 && oz.k > 1.001) { var p = oz.pts[left[0]]; oz.drag = { id: +left[0], x: p[0], y: p[1], cx: oz.cx, cy: oz.cy, moved: true }; }
+        ozDetail();
+      }
+      return;
+    }
+    if (oz.drag && oz.drag.id === e.pointerId) {
+      if (oz.drag.moved) { oz.noClick = Date.now() + 300; ozDetail(); }
+      oz.drag = null;
+      $('orbit-box').classList.remove('grabbing');
+    }
+  }
+
+  // ---- 올리기 · 누르기: 구간에 올리면 가운데가 그 구간, 누르면 분류 팝오버(§7). 손가락은 한 번 누르면 가운데에, 같은 구간을 한 번 더 누르면 팝오버
   function orbitMark() {
     var svg = $('orbit-svg');
     if (!svg) return;
-    var hi = state.obHover, dim = state.obDim, byHover = hi !== undefined && hi !== null && hi >= 0;
-    svg.classList.toggle('dim', byHover || !!dim);
+    var hv = state.obHover, dim = state.obDim, day = state.obDay, byDay = day !== null && day !== undefined && day >= 0;
+    svg.classList.toggle('dim', !!hv || !!dim || byDay);
     Array.prototype.forEach.call(svg.querySelectorAll('.ob-arc'), function (a) {
-      a.classList.toggle('on', byHover ? +a.getAttribute('data-i') === hi : (!!dim && a.getAttribute('data-cat') === dim));
+      var r = +a.getAttribute('data-r');
+      a.classList.toggle('on', hv ? (r === hv.r && +a.getAttribute('data-i') === hv.i) : dim ? a.getAttribute('data-cat') === dim : byDay ? r === day : false);
     });
+    Array.prototype.forEach.call(svg.querySelectorAll('.ow-lbl'), function (t) { t.classList.toggle('on', byDay && +t.getAttribute('data-r') === day); });
+    Array.prototype.forEach.call(document.querySelectorAll('#ow-days .ow-day'), function (b, i) { b.classList.toggle('on', byDay && i === day); });
   }
-  function orbitHover(i) {
-    var sp = (i >= 0 && tl.strip && tl.strip.spans) ? tl.strip.spans[i] : null;
-    state.obHover = sp ? i : -1;
+  function orbitHover(sel) {
+    var rg = sel ? orb.rings[sel.r] : null, sp = rg ? rg.spans[sel.i] : null;
+    state.obHover = sp ? sel : null;
     $('ps-tap').classList.toggle('hov', !!sp);
     orbitMark();
     if (!sp) return;
     var hov = $('orbit-hov'), cat = catOf(sp.category), lbl = spanLabel(sp);
+    var when = hm(sp.start) + ' – ' + hm(sp.end);
+    if (orb.kind === 'week') when = WEEK[parseDate(rg.date).getDay()] + ' ' + mdStr(rg.date) + ' · ' + when;
     clear(hov);
-    hov.appendChild(h('div', { class: 'oh-time', text: hm(sp.start) + ' – ' + hm(sp.end) }));
+    hov.appendChild(h('div', { class: 'oh-time', text: when }));
     hov.appendChild(h('div', { class: 'oh-len', text: fmtHM(sp.end - sp.start) }));
     hov.appendChild(h('div', { class: 'oh-cat' }, [h('span', { class: 'd', style: 'background:' + cat.color }), cat.name + (sp.source === 'override' ? ' · 정정됨' : '')]));
     if (lbl) hov.appendChild(h('div', { class: 'oh-app', text: lbl }));
     if (sp.title && sp.title !== lbl) hov.appendChild(h('div', { class: 'oh-title', text: sp.title }));
-    hov.appendChild(h('div', { class: 'oh-hint', text: '눌러서 분류' }));
+    hov.appendChild(h('div', { class: 'oh-hint', text: oz.ptype === 'mouse' ? '눌러서 분류' : '한 번 더 누르면 분류' }));
   }
+  function arcOf(e) { var t = e.target; return (t && t.classList && t.classList.contains('ob-arc')) ? t : null; }
+  function arcSel(t) { return { r: +t.getAttribute('data-r'), i: +t.getAttribute('data-i') }; }
   function initOrbitHover() {
-    var svg = $('orbit-svg');
-    var arcOf = function (e) { var t = e.target; return (isSplit() && t && t.classList && t.classList.contains('ob-arc')) ? t : null; };
-    svg.addEventListener('mouseover', function (e) { var t = arcOf(e); if (t) orbitHover(+t.getAttribute('data-i')); });
-    svg.addEventListener('mouseout', function (e) { if (arcOf(e)) orbitHover(-1); });
-    svg.addEventListener('mouseleave', function () { if (state.obHover >= 0) orbitHover(-1); });
+    var svg = $('orbit-svg'), box = $('orbit-box');
+    svg.addEventListener('mouseover', function (e) { var t = arcOf(e); if (t && !oz.drag && !state.obSel) orbitHover(arcSel(t)); });
+    svg.addEventListener('mouseout', function (e) { if (arcOf(e) && !state.obSel) orbitHover(null); });
+    svg.addEventListener('mouseleave', function () { if (state.obHover && !state.obSel) orbitHover(null); });
     svg.addEventListener('click', function (e) {
-      var t = arcOf(e), sp = t && tl.strip && tl.strip.spans ? tl.strip.spans[+t.getAttribute('data-i')] : null;
-      if (!sp) return;
+      if (Date.now() < oz.noClick) return;                      // 끌거나 집은 끝의 누르기는 버린다
+      var t = arcOf(e), sel = t ? arcSel(t) : null, rg = sel ? orb.rings[sel.r] : null, sp = rg ? rg.spans[sel.i] : null;
+      if (!sp) { if (state.obSel) { state.obSel = null; orbitHover(null); } return; }
       e.stopPropagation();
-      openPopover({ kind: 'span', span: sp }, e);
+      if (oz.ptype !== 'mouse' && !(state.obSel && state.obSel.r === sel.r && state.obSel.i === sel.i)) { state.obSel = sel; orbitHover(sel); return; }
+      openPopover({ kind: 'span', span: sp, date: rg.date }, e);
     });
+    svg.addEventListener('dblclick', function (e) { if (!arcOf(e)) { e.preventDefault(); ozReset(false); } });     // 두 번 누르면 전체로
+    box.addEventListener('wheel', ozWheel, { passive: false });
+    box.addEventListener('pointerdown', ozDown);
+    box.addEventListener('pointermove', ozMove);
+    box.addEventListener('pointerup', ozUp);
+    box.addEventListener('pointercancel', ozUp);
+    $('oz-all').addEventListener('click', function (e) { e.stopPropagation(); ozReset(false); });
+    if (window.ResizeObserver) new ResizeObserver(function () { if (ozGeom()) { ozApply(); ozDetailSoon(); } }).observe(box);
   }
   // ------------------------------------------------------------ §50 작은 궤도 줄: 큰 궤도 아래 — 그 주(일곱 개) 또는 그 달(날마다 하나). 누르면 그 날이 큰 궤도로
   var STRIP_KEY = 'orbit.strip', STRIP_STALE_MS = 300000;
@@ -821,8 +1071,8 @@
       renderStrip();
     }).catch(function (e) { if (seq === strip.seq) strip.at = 0; console.warn('작은 궤도 줄', e); });   // 조용히 — 다음 갱신 때 다시
   }
-  function miniOrbit(d, date, isTodayCell) {
-    var month = strip.mode === 'month', R = month ? 24 : 26, sm = d.summary || {};
+  function miniOrbit(d, date, isTodayCell, full) {             // full: 월 달력 칸(§55.4) — 줄이 월이어도 구간을 다 그린다
+    var month = !full && strip.mode === 'month', R = month ? 24 : 26, sm = d.summary || {};
     var svg = s('svg', { viewBox: '0 0 64 64', class: 'ob-mini' + (month ? ' mo' : ''), 'aria-hidden': 'true' });
     var ws = (d.window && d.window.start) || dayWindowOf(date).start, h0 = state.config.day_start_hour || 4;
     var deg = function (ts) { var hh = h0 + (ts - ws) / 3600; return ((hh % 24) + 24) % 24 / 24 * 360; };
@@ -1008,7 +1258,7 @@
     }
     if ($('ph-todos-n')) $('ph-todos-n').textContent = total + '개' + (nDone ? ' · 끝낸 것 ' + nDone : '');
     renderPhoneHero();                                              // 궤도의 안쪽 고리(할 일 진행률)와 아래 한 줄도 따라 바뀐다
-    if (tl.strip) renderPhoneStrip(tl.strip.spans, tl.strip.startHour, tl.strip.endHour, tl.strip.today, tl.strip.now);
+    if (state.view === 'day') renderTimeline();                       // 안쪽 고리(할 일 진행률)
   }
   // ------------------------------------------------------------ §51 받아 적기 · 개인 비서
   // 적은 글은 바로 저장되고(나누는 중), claude 가 할 일 · 마감 · 일정 · 기억으로 나눠 제자리에 넣는다. 나눈 결과는 10분 동안 맨 위에 — 되돌리기 · 확인
@@ -1164,15 +1414,6 @@
       if (!a) return;
       e.preventDefault();
       var sec = a.getAttribute('data-sec');
-      // 타임라인으로 가거나 타임라인에서 나올 때만 화면이 바뀐다(뒤로 가기에 남는다). 한 장 안에서는 그 칸으로 내려갈 뿐
-      if (sec === 'timeline' || phonePage() === 'timeline') {
-        if (isSplit() && sec !== 'timeline' && sec !== 'today') {       // §50 나란히: 무대(타임라인)는 두고 오른쪽 장만 움직인다
-          if (PHONE_ANCHOR[sec]) openTile(PHONE_ANCHOR[sec], true);
-          phoneScrollTo(sec, true);
-          return;
-        }
-        state.tileWant = sec; goPhonePage(sec); return;
-      }
       try { history.replaceState(null, '', '#/' + sec); } catch (err) { /* 주소를 못 바꿔도 간다 */ }
       if (PHONE_ANCHOR[sec]) openTile(PHONE_ANCHOR[sec], true);     // 접힌 칸이면 펼치고 간다
       markRail(sec);
@@ -1204,9 +1445,6 @@
       var open = $('main').classList.toggle('hero-open');
       this.textContent = open ? '접기' : '자세히 ›';
     });
-    var tap = $('ps-tap');
-    tap.addEventListener('click', function () { if (!isSplit()) goPhonePage('timeline'); });       // 나란히(§50)면 큰 궤도의 구간을 눌러 분류한다
-    tap.addEventListener('keydown', function (e) { if (!isSplit() && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); goPhonePage('timeline'); } });
     $('phone-more').addEventListener('click', function (e) {
       var t = e.target.closest ? e.target.closest('[data-act]') : null;
       if (!t) return;
@@ -1216,13 +1454,11 @@
       else if (act === 'logout') $('link-logout').click();
     });
     $('ph-theme').firstChild.nodeValue = THEME === 'dark' ? '밝은 화면으로' : '어두운 화면으로';
-    window.addEventListener('resize', function () { syncTimelineTop(); if (state.railCur) markRail(state.railCur); });
+    window.addEventListener('resize', function () { if (state.railCur) markRail(state.railCur); });
     if (splitMQ && splitMQ.addEventListener) splitMQ.addEventListener('change', function () {
       applyPhonePage();
-      if (state.view === 'day' && state.day) renderTimeline(false);
-      else if (state.view === 'week' && state.range) renderWeek();
-      else if (state.view === 'month' && state.range) renderMonth();
-      if (!isSplit() && state.obHover >= 0) orbitHover(-1);
+      renderOrbit();
+      if (state.obHover) { state.obSel = null; orbitHover(null); }
     });
     // 칸이 생기거나 사라지면(공지 · 오늘 밤 · 다른 기기) 세로 바도 맞춘다
     if (window.MutationObserver) new MutationObserver(function () { syncRail(); }).observe($('sidebar'), { attributes: true, attributeFilter: ['hidden'], subtree: true });
@@ -1232,7 +1468,7 @@
     // 처음 열 때는 내용이 아직 덜 그려져 자리가 어긋난다 — 그려진 뒤 한 번 더 맞춘다
     setTimeout(function () {
       syncRail();
-      if (!onTimelinePage() && phonePage() !== 'timeline' && phonePage() !== 'today') phoneScrollTo(phonePage(), false);
+      if (phonePage() !== 'today') phoneScrollTo(phonePage(), false);
     }, 700);
   }
 
@@ -1603,7 +1839,6 @@
     // 1초 디바운스 대기 중인 메모가 있으면 날짜를 바꾸기 전에 즉시 저장 (안 그러면 사라짐)
     flushNote('today');
     state.date = newDate;
-    state.scrolledOnce = false;
     lockNote('today', '불러오는 중…');
     loadDay(newDate);
     loadTodos();
@@ -1661,137 +1896,24 @@
     $('pause-hint').textContent = paused ? hm(st.paused_until) + '까지 기록하지 않습니다.' : '일시정지 중에는 전경 창을 기록하지 않습니다.';
   }
 
-  // ------------------------------------------------------------ 타임라인
-  var tl = { startHour: 0, endHour: 24, windowStart: 0, width: 0 };
+  // ------------------------------------------------------------ 타임라인 = 하루 궤도 (§55 — 세로 타임라인은 없다)
+  var tl = { windowStart: 0 };
 
   function hourOfTs(ts) {
     // window.start 기준 상대 시각을 '시' 로 (day_start_hour + 경과시간)
     return (state.config.day_start_hour || 4) + (ts - tl.windowStart) / 3600;
   }
-  function yOf(ts) {
-    var h0 = state.config.day_start_hour || 4;
-    return PAD_TOP + ((ts - tl.windowStart) / 60 - (tl.startHour - h0) * 60) * state.pxPerMin;
-  }
 
-  function renderTimeline(scrollToStart) {
+  function renderTimeline() {
     var day = state.day;
-    var svg = $('timeline');
-    var wrap = $('timeline-scroll'); // 스크롤 컨테이너 (#timeline-wrap 은 툴바 행 + 스크롤 영역의 세로 flex)
-    var emptyEl = $('timeline-empty');
-    clear(svg);
-    if (!day || !day.window) return;
-    if (onTimelinePage()) syncTimelineTop();   // §39.2 폰 타임라인 화면의 높이 기준 — 폭·맞춤 배율을 재기 전에
-
-    var h0 = state.config.day_start_hour || 4;
+    if (!day || !day.window || state.view !== 'day') return;
     tl.windowStart = day.window.start;
-    var spans = (day.spans || []).filter(function (sp) { return sp.category !== 'off' && sp.end > sp.start; });
-
-    var startHour = state.config.display_start_hour;
-    var endHour = state.config.display_end_hour;
-    if (startHour === undefined || startHour === null) startHour = 6;
-    if (endHour === undefined || endHour === null) endHour = 24;
-    if (spans.length) {
-      startHour = Math.min(startHour, Math.floor(hourOfTs(spans[0].start) + 1e-9));
-      endHour = Math.max(endHour, Math.ceil(hourOfTs(spans[spans.length - 1].end) - 1e-9));
-    }
-    var today = isToday();
-    var now = nowTs();
-    if (today && now >= day.window.start && now <= day.window.end) {
-      endHour = Math.max(endHour, Math.ceil(hourOfTs(now) - 1e-9));
-    }
-    if (day.night) endHour = Math.max(endHour, h0 + 20);   // §19 밤 밴드가 자정까지 보이게
-    startHour = Math.max(h0, startHour);
-    endHour = Math.min(h0 + 24, Math.max(endHour, startHour + 1));
-    tl.startHour = startHour; tl.endHour = endHour;
-
-    var width = wrap.clientWidth || 600;
-    tl.width = width;
-    if (state.zoomFit) state.pxPerMin = fitPxFor(wrap, (endHour - startHour) * 60); // 맞춤: 한 화면에 들어오게
-    var px = state.pxPerMin;
-    var height = PAD_TOP + (endHour - startHour) * 60 * px + PAD_BOTTOM;
-    svg.setAttribute('width', width);
-    svg.setAttribute('height', height);
-    svg.style.height = height + 'px';
-
-    var x0 = GUTTER + 4;
-    var rectW = Math.max(40, width - x0 - RECT_PAD_RIGHT);
-
-    // 배경 격자 + 눈금 (밀도는 배율에 따라 1/2/3시간, 격자선은 라벨 있는 시각만 + 범위 양끝)
-    svg.appendChild(drawHourGrid(startHour, endHour, px, width));
-
-    // spans
-    var gSpans = s('g', { class: 'spans' });
-    (day.spans || []).forEach(function (sp, idx) {
-      if (sp.category === 'off' || !(sp.end > sp.start)) return;
-      var yA = yOf(sp.start), yB = yOf(sp.end);
-      var hgt = Math.max(1, yB - yA);
-      var cat = catOf(sp.category);
-      var attrs = {
-        class: 'span cat-' + sp.category + (sp.source === 'override' ? ' override' : ''),
-        'data-idx': idx, x: x0, y: yA, width: rectW, height: hgt, fill: cat.color, rx: 2
-      };
-      if (sp.category === 'paused') {
-        attrs.stroke = '#9CA3AF'; attrs['stroke-width'] = 1.5; attrs['stroke-dasharray'] = '4 3';
-        attrs.x = x0 + 1; attrs.width = rectW - 2; // 테두리 잘림 방지
-      } else if (sp.source === 'override') {
-        attrs.stroke = '#1f4fd1'; attrs['stroke-width'] = 1; attrs['stroke-opacity'] = 0.6;
-      }
-      var rect = s('rect', attrs);
-      rect.appendChild(s('title', { text: spanTooltip(sp) }));
-      gSpans.appendChild(rect);
-      if (sp.category === 'distraction' || sp.category === 'away') {
-        gSpans.appendChild(s('rect', {
-          class: 'span-overlay', x: x0, y: yA, width: rectW, height: hgt, rx: 2,
-          fill: sp.category === 'distraction' ? 'url(#hatch-white)' : 'url(#hatch-gray)'
-        }));
-      }
-      if (hgt >= 14) {
-        var lbl = spanLabel(sp);
-        var label = cat.name + (lbl ? ' · ' + lbl : '');
-        if (!sp.label && sp.title) label += ' · ' + sp.title; // 표시 이름이 없을 때(구 서버)만 원문 제목 병기
-        label = truncateToWidth(label, rectW - 12, 11);
-        gSpans.appendChild(s('text', {
-          class: 'span-text', x: x0 + 6, y: yA + Math.min(hgt / 2 + 4, 12), fill: textColorFor(cat.color), text: label
-        }));
-      }
-    });
-    svg.appendChild(gSpans);
-    if (day.night) svg.appendChild(nightBand(day.night, x0, rectW));
-
-    // 현재 시각선
-    if (today && now >= day.window.start && now <= day.window.end) {
-      var yn = yOf(now);
-      svg.appendChild(s('line', { id: 'now-line', class: 'now-line', x1: GUTTER, y1: yn, x2: width, y2: yn, stroke: '#1f4fd1', 'stroke-width': 1.5 }));
-    }
-
-    emptyEl.hidden = spans.length > 0 || !!day.night;
-    renderPhoneStrip(spans, startHour, endHour, today, now);   // §38.4 폰 '오늘' 화면의 하루 띠
-
-    if (scrollToStart || !state.scrolledOnce) {
-      state.scrolledOnce = true;
-      var targetY = null;
-      if (today && now >= day.window.start && now <= day.window.end) targetY = yOf(now);
-      else if (spans.length) targetY = yOf(spans[0].start);
-      if (targetY !== null) {
-        var top = Math.max(0, targetY - wrap.clientHeight * 0.55);
-        wrap.scrollTop = top;
-      }
-    }
+    var mine = day.date === state.date;                          // 다른 날로 가는 중이면(하루를 받기 전) 빈 고리
+    var spans = mine ? (day.spans || []).filter(function (sp) { return sp.category !== 'off' && sp.end > sp.start; }) : [];
+    drawOrbit('day', [{ r: OB.R, band: OB.band, spans: spans, ws: mine ? day.window.start : dayWindowOf(state.date).start, date: state.date, today: isToday(), night: mine ? day.night || null : null }]);
   }
 
-  function updateNowLine() {
-    var line = $('now-line');
-    if (!line || !state.day) return;
-    var now = nowTs();
-    if (now > state.day.window.end) return;
-    if (hourOfTs(now) > tl.endHour) { renderTimeline(false); return; }
-    if (tl.strip) renderPhoneStrip(tl.strip.spans, tl.strip.startHour, tl.strip.endHour, tl.strip.today, now);   // §38.4 하루 띠의 지금 선
-    var y = yOf(now);
-    line.setAttribute('y1', y); line.setAttribute('y2', y);
-  }
-
-  // §19 밤 밴드: 채우지 않는 점선 괄호 + accent 라벨. day.spans 에 넣지 않으므로 정정·주 보기·요약에
-  // 새어 나가지 않는다. 밤늦게 연구한 날은 fill:none 이라 아래 블록이 그대로 다 보인다.
+  // §19 밤 계획: day.spans 에 넣지 않는다(정정 · 주 보기 · 요약에 새지 않게). 궤도 바깥의 점선 호로만.
   // §25: 보이는 밤 구간은 night_start_hour ~ night_band_end_hour(기본 20~23시). 연구 측정 구간과 별개
   function nightShowEndTs(windowStart) {
     var h0 = state.config.day_start_hour || 4;
@@ -1811,42 +1933,6 @@
     else if (n.checked_ts || n.checked) txt += n.done ? ' ✓' : ' ×';
     return txt;
   }
-  function nightBand(n, x0, rectW) {
-    var axisEnd = tl.windowStart + (tl.endHour - (state.config.day_start_hour || 4)) * 3600;
-    var a = Math.max(n.start, tl.windowStart), b = Math.min(n.end, axisEnd, nightShowEndTs(tl.windowStart));
-    var g = s('g', { class: 'night-band' });
-    if (!(b > a)) return g;
-    var yA = yOf(a), yB = yOf(b);
-    g.appendChild(s('rect', {
-      x: x0 + 0.5, y: yA, width: rectW - 1, height: Math.max(1, yB - yA), rx: 2,
-      fill: 'none', stroke: '#1f4fd1', 'stroke-opacity': 0.45, 'stroke-width': 1, 'stroke-dasharray': '3 3'
-    }));
-    var txt = nightText(n);
-    // span 라벨은 왼쪽 정렬이라 rectW 를 반씩 나눠 최악 겹침을 막는다
-    g.appendChild(s('text', {
-      class: 'night-label', x: x0 + rectW - 6, y: yA + 13, 'text-anchor': 'end',
-      text: truncateToWidth(txt, rectW * 0.5, 11)
-    }));
-    return g;
-  }
-
-  function spanTooltip(sp) {
-    var cat = catOf(sp.category);
-    var head = hm(sp.start) + '–' + hm(sp.end) + ' (' + mins(sp.end - sp.start) + '분) · ' + cat.name;
-    if (sp.category === 'absent') head += ' (출근 전·퇴근 후, PC 켜짐)';
-    var lbl = spanLabel(sp);
-    if (lbl) head += ' · ' + lbl;
-    if (sp.source === 'override') head += ' · [정정됨]';
-    // §15: 1줄째 label, 2줄째 원문 제목, 3줄째 exe, 그 아래 apps 상위 3
-    var lines = [head];
-    if (sp.title) lines.push(sp.title);
-    if (sp.exe) lines.push(baseName(sp.exe));
-    (sp.apps || []).slice(0, 3).forEach(function (a) {
-      var nm = appName(a) || '?';
-      lines.push('  ' + nm + (a.title ? ' — ' + a.title : '') + ' · ' + mins(a.sec) + '분');
-    });
-    return lines.join('\n');
-  }
 
   var _measureCtx = null;
   function textWidth(str, fontPx) {
@@ -1854,7 +1940,7 @@
       var c = document.createElement('canvas');
       _measureCtx = c.getContext('2d');
     }
-    _measureCtx.font = fontPx + 'px "Pretendard Variable", Pretendard, Inter, "Malgun Gothic", "Segoe UI", system-ui, sans-serif';
+    _measureCtx.font = fontPx + 'px Geist, "Pretendard Variable", Pretendard, "Malgun Gothic", "Segoe UI", system-ui, sans-serif';
     return _measureCtx.measureText(str).width;
   }
   function truncateToWidth(str, maxW, fontPx) {
@@ -1916,24 +2002,6 @@
       ]);
       li.addEventListener('click', function (ev) { openPopover({ kind: 'unknown', item: it }, ev); });
       ul.appendChild(li);
-    });
-  }
-
-  function renderLegend() {
-    // §30 타임라인 아래(하루)와 주 보기 아래, 두 곳에 같은 범례
-    ['legend', 'legend-week'].forEach(function (id) { var box = $(id); if (box) renderLegendInto(box); });
-  }
-  function renderLegendInto(box) {
-    clear(box);
-    state.categories.forEach(function (c) {
-      if (c.id === 'off') return;
-      var dot = h('span', { class: 'swatch', style: 'background:' + c.color });
-      if (c.id === 'distraction') dot.style.backgroundImage = 'repeating-linear-gradient(45deg, rgba(255,255,255,.7) 0 2px, transparent 2px 5px)';
-      if (c.id === 'away') dot.style.backgroundImage = 'repeating-linear-gradient(45deg, #9CA3AF 0 1.5px, transparent 1.5px 4px)';
-      if (c.id === 'paused') dot.style.border = '1px dashed #9CA3AF';
-      var item = h('span', { class: 'legend-item' }, [dot, c.name]);
-      if (c.id === 'absent') item.title = '출근 전·퇴근 후에 PC 만 켜져 있던 시간 (활동·자리비움 어디에도 안 들어감)';
-      box.appendChild(item);
     });
   }
 
@@ -2636,28 +2704,6 @@
       if (r) r.checked = true;
     });
 
-    $('timeline').addEventListener('click', function (ev) {
-      var t = ev.target;
-      while (t && t !== this && !(t.classList && t.classList.contains('span'))) t = t.parentNode;
-      if (!t || t === this) return;
-      var idx = +t.getAttribute('data-idx');
-      var sp = state.day && state.day.spans && state.day.spans[idx];
-      if (!sp) return;
-      ev.stopPropagation();
-      openPopover({ kind: 'span', span: sp }, ev);
-    });
-    $('week-svg').addEventListener('click', function (ev) {
-      var t = ev.target;
-      while (t && t !== this && !(t.classList && t.classList.contains('span'))) t = t.parentNode;
-      if (!t || t === this) return;
-      var di = +t.getAttribute('data-di'), idx = +t.getAttribute('data-idx');
-      var d = wk.days && wk.days[di];
-      var sp = d && d.spans && d.spans[idx];
-      if (!sp) return;
-      ev.stopPropagation();
-      openPopover({ kind: 'span', span: sp, date: d.date }, ev);
-    });
-
     document.addEventListener('click', function (ev) {
       if (!state.popover) return;
       var pop = $('popover');
@@ -2670,25 +2716,11 @@
       closePopover();
     });
     document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') closePopover(); });
-    wireZoom();
 
     var resizeTimer = null;
     window.addEventListener('resize', function () {
       if (resizeTimer) cancelAnimationFrame(resizeTimer);
-      resizeTimer = requestAnimationFrame(function () {
-        if (state.view === 'week' && state.range) {
-          var keepW = $('week-scroll').scrollTop;
-          renderWeek();
-          $('week-scroll').scrollTop = keepW;
-          return;
-        }
-        if (state.view !== 'day') return;
-        if (state.day) {
-          var keep = $('timeline-scroll').scrollTop;
-          renderTimeline(false);
-          $('timeline-scroll').scrollTop = keep;
-        }
-      });
+      resizeTimer = requestAnimationFrame(function () { resizeTimer = null; if (ozGeom()) { ozApply(); ozDetail(); } });   // §55 궤도 상자만 다시 잰다
     });
 
     setInterval(function () {
@@ -2744,18 +2776,12 @@
   }
 
   function init() {
-    loadZoomPref(); // 저장된 배율이 있으면 그 배율, 없으면 맞춤 (첫 렌더 전에)
     wire();
-    // 콜드 로드 시 Pretendard 가 아직 없으면 measureText 가 대체 글꼴로 재서 라벨이 과하게 잘린다
-    // (블록 라벨·밤 밴드 공통). 글꼴이 준비되면 한 번만 다시 그린다.
+    // 콜드 로드 시 글꼴이 아직 없으면 measureText 가 대체 글꼴로 재서 궤도의 구간 이름이 과하게 잘린다. 글꼴이 준비되면 한 번 다시
     if (document.fonts && document.fonts.ready) {
-      document.fonts.ready.then(function () {
-        if (state.view === 'day' && state.day) renderTimeline(false);
-        else if (state.view === 'week' && state.range) renderWeek();
-      }).catch(function () { /* 무시 */ });
+      document.fonts.ready.then(function () { ozDetail(); }).catch(function () { /* 무시 */ });
     }
     updateViewChrome();
-    renderLegend();
     renderStatus();
     lockNote('today', '불러오는 중…');
     lockNote('pinned', '불러오는 중…');
@@ -2777,7 +2803,6 @@
   var TODAY_LABEL = { day: '오늘', week: '이번 주', month: '이번 달' };
   var NAV_TITLE = { day: ['이전 날짜', '다음 날짜'], week: ['이전 주', '다음 주'], month: ['이전 달', '다음 달'] };
   var WEEK_MON = ['월', '화', '수', '목', '금', '토', '일'];
-  var COL_GAP = 4;
 
   // 투두·메모가 기준으로 삼는 날짜: 하루 보기는 표시 중인 날짜, 주·월 보기는 실제 오늘
   function sideDate() { return state.view === 'day' ? state.date : todayStr(); }
@@ -2814,22 +2839,23 @@
     if (!VIEW_NEXT[view]) return;
     var newDate = date || state.date || todayStr();
     if (view === state.view && newDate === state.date) return;
-    var prevSide = sideDate();
+    var prevSide = sideDate(), prevView = state.view;
     closePopover();
     flushNote('today'); // 디바운스 대기 중인 메모를 먼저 저장
     state.view = view;
     state.date = newDate;
     state.rangePending = false;
     state.dayPending = false;
+    if (view !== prevView) state.range = null;                 // §55 월(시각 · 분류만)의 구간을 주 궤도에 쓰지 않게
+    state.obDay = -1;
     updateViewChrome();
     if (view === 'day') {
-      state.scrolledOnce = false;
       loadDay(newDate);
     } else {
-      state.weekScrolledOnce = false;
       renderRangeHeader();
       loadRange();
     }
+    renderOrbit();                                              // 받기 전에 틀(빈 고리 · 달력)부터
     if (sideDate() !== prevSide) {
       lockNote('today', '불러오는 중…');
       loadTodos();
@@ -2867,9 +2893,6 @@
     $('btn-prev').title = NAV_TITLE[v][0];
     $('btn-next').title = NAV_TITLE[v][1];
     $('date-input').disabled = v !== 'day';
-    $('timeline-wrap').hidden = v !== 'day';
-    $('week-wrap').hidden = v !== 'week';
-    $('month-wrap').hidden = v !== 'month';
     // §18: 보기별 레이아웃 규칙이 #main 의 grid-template-columns 를 갈아타므로 현재 보기를 클래스로 남긴다
     var mainEl = $('main');
     mainEl.classList.toggle('view-day', v === 'day');
@@ -2911,7 +2934,7 @@
     if (state.view === 'day' || !state.date) return Promise.resolve();
     var view = state.view, p = periodOf(view, state.date);
     var seq = ++rangeSeq;
-    var path = '/api/range?start=' + encodeURIComponent(p.start) + '&end=' + encodeURIComponent(p.end) + '&spans=' + (view === 'week' ? 1 : 0);
+    var path = '/api/range?start=' + encodeURIComponent(p.start) + '&end=' + encodeURIComponent(p.end) + '&spans=' + (view === 'week' ? '1' : 'lite');   // §55.4 월 = 시각 · 분류만
     return api(path).then(function (r) {
       if (seq !== rangeSeq || state.view !== view) return; // 늦게 온 응답(◀ 연타·보기 전환)은 버림
       if (state.popover) { state.rangePending = true; return; }
@@ -2924,10 +2947,9 @@
       if (r.status) { state.status = r.status; renderStatus(); }
       state.rangePending = false;
       renderRangeHeader();
-      if (view === 'week') renderWeek(); else renderMonth();
+      renderOrbit();
       renderRangeSummary();
       renderRangeUnknownTop();
-      renderLegend();
       loadPeriod(p, view, seq);
       return r;
     }).catch(fail('기간 기록 불러오기 실패'));
@@ -2938,7 +2960,7 @@
     return api('/api/period?start=' + encodeURIComponent(p.start) + '&end=' + encodeURIComponent(p.end)).then(function (r) {
       if (seq !== rangeSeq || state.view !== view) return;
       state.period = r;
-      if (view === 'week') renderWeek(); else renderMonth();   // §25 밤 일정 밴드·칸 줄
+      renderOrbit();                                          // §55 밤 계획 호 · 달력 칸의 일정
       renderPeriod();
     }).catch(fail('기간 판 불러오기 실패'));
   }
@@ -3044,317 +3066,134 @@
     return out;
   }
 
-  // ---- 주 보기: 7열 세로 타임라인
-  var wk = { startHour: 0, endHour: 24, days: null, colW: 0, width: 0 };
-  function xOfCol(i) { return GUTTER + COL_GAP + i * (wk.colW + COL_GAP); }
-  function yW(ts, windowStart) {
-    // 하루 보기 yOf 와 같은 계산: window.start 기준 경과 분 → px (열마다 window 가 다름)
-    var h0 = state.config.day_start_hour || 4;
-    return PAD_TOP + ((ts - windowStart) / 60 - (wk.startHour - h0) * 60) * state.pxPerMin;
+  // ---- §55.3 주 = 한 원에 궤도 일곱(바깥이 월). 고리 안은 그 주의 합, 궤도 아래 일곱 칸은 날별 숫자
+  function renderWeekOrbit() {
+    if (state.view !== 'week' || !state.date) return;
+    var days = rangeDayList(periodOf('week', state.date)), today = todayStr(), nights = {};
+    ((state.period && state.period.days) || []).forEach(function (x) { if (x.night) nights[x.date] = x.night; });
+    var rings = days.map(function (d, i) {
+      return { r: OW.r0 - i * OW.pitch, band: OW.band, spans: (d.spans || []).filter(function (sp) { return sp.category !== 'off' && sp.end > sp.start; }),
+               ws: d.window.start, date: d.date, today: d.date === today, night: nights[d.date] || null, sm: d.summary || {} };
+    });
+    drawOrbit('week', rings);
+    renderWeekCenter();
+    renderWeekDays(rings);
   }
-
-  function renderWeek() {
-    var svg = $('week-svg'), head = $('week-head'), scroll = $('week-scroll'), emptyEl = $('week-empty');
-    clear(svg); clear(head);
-    if (!state.range || state.view !== 'week') return;
-    var p = periodOf('week', state.date);
-    var days = rangeDayList(p);
-    wk.days = days;
+  // 기간 숫자: 출근 일수 · 활동 합 · 딴짓 · 평균 출근 → 퇴근 · 가장 길게 일한 날 · 분류별 합 (활동 0 인 날은 일수 · 평균에서 뺀다)
+  function periodStats(days) {
     var h0 = state.config.day_start_hour || 4;
-    var today = todayStr(), now = nowTs();
-
-    // 표시 범위 = 7일 합집합 (기본 06~24)
-    var startHour = cfgHour('display_start_hour', 6), endHour = cfgHour('display_end_hour', 24);
-    var anySpans = false;
+    var st = { n: 0, active: 0, dist: 0, entries: 0, by: {}, best: null, inAvg: null, outAvg: null }, sumIn = 0, nIn = 0, sumOut = 0, nOut = 0;
     days.forEach(function (d) {
-      var sp = d.spans.filter(function (x) { return x.category !== 'off' && x.end > x.start; });
-      if (sp.length) {
-        anySpans = true;
-        startHour = Math.min(startHour, Math.floor(h0 + (sp[0].start - d.window.start) / 3600 + 1e-9));
-        endHour = Math.max(endHour, Math.ceil(h0 + (sp[sp.length - 1].end - d.window.start) / 3600 - 1e-9));
-      }
-      if (d.date === today && now >= d.window.start && now <= d.window.end) {
-        endHour = Math.max(endHour, Math.ceil(h0 + (now - d.window.start) / 3600 - 1e-9));
-      }
+      var sm = d.summary || {}, a = sm.active_sec || 0, by = sm.by_category || {};
+      Object.keys(by).forEach(function (c) { st.by[c] = (st.by[c] || 0) + by[c]; });
+      if (sm.first_active === null || sm.first_active === undefined || !(a > 0)) return;
+      st.n++; st.active += a; st.dist += sm.distraction_sec || 0; st.entries += sm.distraction_entries || 0;
+      sumIn += sm.first_active - d.window.start; nIn++;
+      if (sm.last_active !== null && sm.last_active !== undefined && !sm.in_progress) { sumOut += sm.last_active - d.window.start; nOut++; }
+      if (!st.best || a > st.best.sec) st.best = { date: d.date, sec: a };
     });
-    var nightsBy = {};
-    ((state.period && state.period.days) || []).forEach(function (x) { if (x.night) nightsBy[x.date] = x.night; });
-    if (Object.keys(nightsBy).length) {           // §25 밤 일정이 있는 주는 23시까지 보인다
-      var he = cfgHour('night_band_end_hour', 23); if (he <= h0) he += 24;
-      endHour = Math.max(endHour, he);
-    }
-    startHour = Math.max(h0, startHour);
-    endHour = Math.min(h0 + 24, Math.max(endHour, startHour + 1));
-    wk.startHour = startHour; wk.endHour = endHour;
-
-    var width = scroll.clientWidth || $('week-wrap').clientWidth || 800;
-    wk.width = width;
-    var colW = Math.max(36, (width - GUTTER - COL_GAP * 8) / 7);
-    wk.colW = colW;
-
-    // 열 머리 (SVG 바깥, 고정)
-    head.appendChild(h('div', { class: 'wk-gutter' }));
-    days.forEach(function (d) {
-      var sm = d.summary || {};
-      var dt = parseDate(d.date);
-      var cls = 'wk-col' + (d.date === today ? ' today' : '') + (d.date > today ? ' future' : '');
-      // 열 폭이 좁아(1300px 창에서 약 110px) 한 줄에 들어가지 않으므로 출근→퇴근 / 활동시간 두 줄로
-      var sub = '—', sub2 = '';
-      if (sm.first_active !== null && sm.first_active !== undefined) {
-        var arrow = colW < 90 ? '→' : ' → ';
-        sub = hm(sm.first_active) + arrow + (sm.in_progress ? '진행 중' : hm(sm.last_active));
-        sub2 = fmtShort(sm.active_sec);
-      }
-      var col = h('div', {
-        class: cls, style: 'width:' + colW + 'px;margin-left:' + COL_GAP + 'px',
-        title: koreanDate(d.date) + (d.date === today ? ' · 오늘' : '') + ' — 누르면 하루 보기로',
-        onclick: function () { setView('day', d.date); }
-      }, [
-        h('div', { class: 'wk-day', text: WEEK[dt.getDay()] + ' ' + mdStr(d.date) }),
-        h('div', { class: 'wk-sub', text: sub }),
-        h('div', { class: 'wk-sub wk-sub2', text: sub2 })
-      ]);
-      head.appendChild(col);
-    });
-
-    if (state.zoomFit) state.pxPerMin = fitPxFor(scroll, (endHour - startHour) * 60); // 맞춤 (하루 보기와 같은 배율 규칙)
-    var px = state.pxPerMin;
-    var height = PAD_TOP + (endHour - startHour) * 60 * px + PAD_BOTTOM;
-    svg.setAttribute('width', width);
-    svg.setAttribute('height', height);
-    svg.style.height = height + 'px';
-
-    // 오늘 열 배경
-    var gBg = s('g', { class: 'wk-bg' });
-    days.forEach(function (d, i) {
-      if (d.date === today) gBg.appendChild(s('rect', { class: 'wk-today-bg', x: xOfCol(i), y: 0, width: colW, height: height }));
-    });
-    svg.appendChild(gBg);
-
-    // 격자 + 눈금 (공통 시각축, 밀도 규칙은 하루 보기와 동일)
-    svg.appendChild(drawHourGrid(startHour, endHour, px, width));
-
-    // spans (하루 보기와 같은 색·패턴·툴팁)
-    var gSpans = s('g', { class: 'spans' });
-    var showText = colW >= 70;
-    days.forEach(function (d, di) {
-      var x0 = xOfCol(di);
-      d.spans.forEach(function (sp, idx) {
-        if (sp.category === 'off' || !(sp.end > sp.start)) return;
-        var yA = yW(sp.start, d.window.start), yB = yW(sp.end, d.window.start);
-        var hgt = Math.max(1, yB - yA);
-        var cat = catOf(sp.category);
-        var attrs = {
-          class: 'span cat-' + sp.category + (sp.source === 'override' ? ' override' : ''),
-          'data-di': di, 'data-idx': idx, x: x0, y: yA, width: colW, height: hgt, fill: cat.color, rx: 2
-        };
-        if (sp.category === 'paused') {
-          attrs.stroke = '#9CA3AF'; attrs['stroke-width'] = 1.5; attrs['stroke-dasharray'] = '4 3';
-          attrs.x = x0 + 1; attrs.width = colW - 2;
-        } else if (sp.source === 'override') {
-          attrs.stroke = '#1f4fd1'; attrs['stroke-width'] = 1; attrs['stroke-opacity'] = 0.6;
-        }
-        var rect = s('rect', attrs);
-        rect.appendChild(s('title', { text: spanTooltip(sp) }));
-        gSpans.appendChild(rect);
-        if (sp.category === 'distraction' || sp.category === 'away') {
-          gSpans.appendChild(s('rect', {
-            class: 'span-overlay', x: x0, y: yA, width: colW, height: hgt, rx: 2,
-            fill: sp.category === 'distraction' ? 'url(#hatch-white)' : 'url(#hatch-gray)'
-          }));
-        }
-        if (showText && hgt >= 14) {
-          var lbl = spanLabel(sp);
-          var label = cat.name + (lbl ? ' · ' + lbl : '');
-          label = truncateToWidth(label, colW - 10, 11);
-          if (label) gSpans.appendChild(s('text', {
-            class: 'span-text', x: x0 + 5, y: yA + Math.min(hgt / 2 + 4, 12), fill: textColorFor(cat.color), text: label
-          }));
-        }
-      });
-    });
-    svg.appendChild(gSpans);
-
-    // §25 밤 일정 밴드 (하루 보기와 같은 점선 괄호, 20~23시)
-    var gNight = s('g', { class: 'night-band' });
-    days.forEach(function (d, i) {
-      var n = nightsBy[d.date];
-      if (!n) return;
-      var yA = yW(nightShowStartTs(d.window.start), d.window.start), yB = yW(nightShowEndTs(d.window.start), d.window.start);
-      if (!(yB > yA)) return;
-      var x = xOfCol(i);
-      gNight.appendChild(s('rect', { x: x + 0.5, y: yA, width: colW - 1, height: yB - yA, rx: 2,
-        fill: 'none', stroke: '#1f4fd1', 'stroke-opacity': 0.45, 'stroke-width': 1, 'stroke-dasharray': '3 3' }));
-      var label = truncateToWidth(colW >= 70 ? nightText(n) : (n.kind_name || nightName(n.kind)), colW - 8, 11);
-      if (label) gNight.appendChild(s('text', { class: 'night-label', x: x + colW - 4, y: yA + 13, 'text-anchor': 'end', text: label }));
-    });
-    svg.appendChild(gNight);
-
-    // 오늘 열 현재 시각선
-    var todayIdx = -1;
-    days.forEach(function (d, i) { if (d.date === today && now >= d.window.start && now <= d.window.end) todayIdx = i; });
-    if (todayIdx >= 0) {
-      var yn = yW(now, days[todayIdx].window.start);
-      svg.appendChild(s('line', { id: 'week-now-line', class: 'now-line', x1: xOfCol(todayIdx) - 2, y1: yn, x2: xOfCol(todayIdx) + colW + 2, y2: yn, stroke: '#1f4fd1', 'stroke-width': 1.5 }));
-    }
-
-    emptyEl.hidden = anySpans;
-
-    if (!state.weekScrolledOnce) {
-      state.weekScrolledOnce = true;
-      var targetY = null;
-      if (todayIdx >= 0) targetY = yW(now, days[todayIdx].window.start);
-      else {
-        var firstY = null;
-        days.forEach(function (d) {
-          d.spans.forEach(function (sp) {
-            if (sp.category === 'off' || !(sp.end > sp.start)) return;
-            var yy = yW(sp.start, d.window.start);
-            if (firstY === null || yy < firstY) firstY = yy;
-          });
-        });
-        targetY = firstY;
-      }
-      if (targetY !== null) scroll.scrollTop = Math.max(0, targetY - scroll.clientHeight * 0.55);
-    }
+    var avg = function (sec) { var t = h0 * 3600 + sec; return pad2(Math.floor(t / 3600) % 24) + ':' + pad2(Math.floor((t % 3600) / 60)); };
+    if (nIn) st.inAvg = avg(sumIn / nIn);
+    if (nOut) st.outAvg = avg(sumOut / nOut);
+    return st;
   }
-
-  function updateWeekNowLine() {
-    var line = $('week-now-line');
-    if (!state.range || state.view !== 'week') return;
-    var now = nowTs(), today = todayStr();
-    var d = null, di = -1;
-    (wk.days || []).forEach(function (x, i) { if (x.date === today) { d = x; di = i; } });
-    if (!d) { if (periodIncludesToday()) renderWeek(); return; } // 04:00 경계를 넘김
-    if (now > d.window.end) return;
-    var h0 = state.config.day_start_hour || 4;
-    if (!line || h0 + (now - d.window.start) / 3600 > wk.endHour) { renderWeek(); return; }
-    var y = yW(now, d.window.start);
-    line.setAttribute('y1', y); line.setAttribute('y2', y);
+  function renderWeekCenter() {
+    if (state.view !== 'week' || !state.date || !$('hero-num')) return;
+    var st = periodStats(rangeDayList(periodOf('week', state.date)));
+    $('orbit-l').textContent = (periodIncludesToday() ? '이번 주' : '그 주') + ' 활동';
+    heroNum(st.active > 0 ? st.active : (state.range ? 0 : null));
+    $('hero-attend').textContent = st.n ? '출근 ' + st.n + '일 · 평균 ' + st.inAvg + ' → ' + (st.outAvg || '—') : (state.range ? '기록 없음' : '불러오는 중…');
+    var parts = [];
+    if (st.active > 0) parts.push('딴짓 ' + Math.round(st.dist / st.active * 100) + '%');
+    if (st.best) parts.push('가장 긴 날 ' + WEEK[parseDate(st.best.date).getDay()] + ' ' + fmtHM(st.best.sec));
+    $('hero-foot').textContent = parts.join(' · ');
+    renderOrbitInside({ by_category: st.by }, parts, null);
   }
-
-  // ---- 월 보기: 달력 격자
-  function renderMonth() {
-    var grid = $('month-grid'), wd = $('month-weekdays'), emptyEl = $('month-empty');
-    clear(grid); clear(wd);
-    if (!state.range || state.view !== 'month') return;
-    WEEK_MON.forEach(function (n, i) { wd.appendChild(h('div', { class: 'mwd' + (i === 6 ? ' sun' : ''), text: n })); });
-    var p = periodOf('month', state.date);
-    var days = rangeDayList(p);
+  // 궤도 아래 일곱 칸 — 요일 · 날짜 / 활동 시간 / 출근 → 퇴근. 올리면 그 날 고리만 밝게, 누르면 그 날 하루로
+  function renderWeekDays(rings) {
+    var box = $('ow-days');
+    if (!box) return;
+    clear(box);
     var today = todayStr();
-    var maxActive = 0, anyActive = false;
-    days.forEach(function (d) { var a = (d.summary && d.summary.active_sec) || 0; if (a > 0) anyActive = true; maxActive = Math.max(maxActive, a); });
-    var activeCats = state.categories.filter(function (c) { return c.kind === 'active'; });
-    var monthNights = {}, monthEvents = {};
-    ((state.period && state.period.days) || []).forEach(function (x) { if (x.night) monthNights[x.date] = x.night; if (x.events && x.events.length) monthEvents[x.date] = x.events; });
-
-    var lead = (parseDate(p.start).getDay() + 6) % 7;
-    for (var i = 0; i < lead; i++) grid.appendChild(h('div', { class: 'mcell pad' }));
-    days.forEach(function (d) {
-      var sm = d.summary || {};
-      var dt = parseDate(d.date);
-      var isT = d.date === today, future = d.date > today, sun = dt.getDay() === 0;
-      var cls = 'mcell' + (isT ? ' today' : '') + (future ? ' future' : '') + (sun ? ' sun' : '');
-      var attend = '—';
-      if (sm.first_active !== null && sm.first_active !== undefined) {
-        attend = hm(sm.first_active) + ' → ' + (sm.in_progress ? '진행 중' : hm(sm.last_active));
-      }
-      var active = sm.active_sec || 0;
-      var bar = h('div', { class: 'mbar', style: 'width:' + (maxActive > 0 ? Math.round(active / maxActive * 1000) / 10 : 0) + '%' });
-      if (active > 0) {
-        var by = sm.by_category || {};
-        activeCats.forEach(function (c) {
-          var sec = by[c.id] || 0;
-          if (sec <= 0) return;
-          bar.appendChild(h('div', {
-            class: 'mseg ' + c.id, title: c.name + ' ' + fmtShort(sec),
-            style: 'width:' + (sec / active * 100) + '%;background-color:' + c.color
-          }));
-        });
-      }
-      var tip = koreanDate(d.date) + (isT ? ' · 오늘' : '') + '\n출근 → 퇴근: ' + attend + '\n활동 ' + (active > 0 ? fmtHM(active) : '—');
-      if (sm.distraction_sec) tip += '\n딴짓 ' + mins(sm.distraction_sec) + '분';
-      tip += '\n(누르면 하루 보기)';
-      // §26 출퇴근 트랙: 표시 범위(기본 06~24시) 위에 출근~퇴근 막대. 9시·18시 눈금 — 일찍/늦게는 위치로만 보인다(판단 문구 없음)
-      var trackKids = [];
-      var ax0 = cfgHour('display_start_hour', 6), ax1 = cfgHour('display_end_hour', 24);
-      var pct = function (hr) { return Math.max(0, Math.min(100, (hr - ax0) / (ax1 - ax0) * 100)); };
-      [9, 18].forEach(function (tk) { if (tk > ax0 && tk < ax1) trackKids.push(h('i', { class: 'mtick', style: 'left:' + pct(tk) + '%' })); });
-      if (sm.first_active !== null && sm.first_active !== undefined && d.window) {
-        var h0m = state.config.day_start_hour || 4;
-        var hin = h0m + (sm.first_active - d.window.start) / 3600;
-        var outTs = sm.in_progress ? Math.min(nowTs(), d.window.end) : sm.last_active;
-        var hout = h0m + ((outTs || sm.first_active) - d.window.start) / 3600;
-        // 한 줄로: 출근~퇴근 자리(연한 회색) 안을 활동 분류 색으로 채운다(비율). 빈 곳 = 자리비움 등
-        var spanSec = Math.max(1, (outTs || sm.first_active) - sm.first_active);
-        var segs = [];
-        var byc = sm.by_category || {};
-        activeCats.forEach(function (c) {
-          var sec = byc[c.id] || 0;
-          if (sec <= 0) return;
-          segs.push(h('i', { class: 'mseg ' + c.id, title: c.name + ' ' + fmtShort(sec),
-            style: 'width:' + Math.min(100, sec / spanSec * 100) + '%;background-color:' + c.color }));
-        });
-        trackKids.push(h('span', { class: 'mspan' + (sm.in_progress ? ' live' : ''), style: 'left:' + pct(hin) + '%;width:' + Math.max(1.5, pct(hout) - pct(hin)) + '%' }, segs));
-      }
-      var track = h('div', { class: 'mtrack', title: '출근 → 퇴근 (' + pad2(ax0) + '~' + pad2(ax1 % 24) + '시 축, 눈금 9시·18시)' }, trackKids);
-      var mn = monthNights[d.date];
-      if (mn) tip += '\n' + nightText(mn);
-      var mev = monthEvents[d.date] || [];
-      mev.forEach(function (ev) { tip += '\n' + (ev.kind === 'deadline' ? '마감: ' : '') + ev.title; });
-      var cell = h('div', { class: cls, title: tip, onclick: function () { setView('day', d.date); } }, [
-        h('div', { class: 'mday', text: String(dt.getDate()) }),
-        h('div', { class: 'mattend', text: attend }),
-        track,
-        mn ? h('div', { class: 'mnight' + (mn.checked ? (mn.done ? ' ok' : ' no') : ''), text: nightText(mn).replace('밤 · ', '밤 ') }) : null,
-        mev[0] ? h('div', { class: 'mevt ' + mev[0].kind + (mev[0].done ? ' done' : ''), text: mev[0].title }) : null,
-        mev[1] ? h('div', { class: 'mevt ' + mev[1].kind + (mev[1].done ? ' done' : ''), text: mev.length > 2 ? mev[1].title + ' 외 ' + (mev.length - 2) : mev[1].title }) : null,
-        h('div', { class: 'mbar-wrap' }, [
-          h('div', { class: 'mact' + (active > 0 ? '' : ' none'), text: active > 0 ? fmtShort(active) : '—' })
-        ])
+    rings.forEach(function (rg, i) {
+      var sm = rg.sm, dt = parseDate(rg.date), future = rg.date > today, came = sm.first_active !== null && sm.first_active !== undefined;
+      var b = h('button', { type: 'button', class: 'ow-day' + (rg.today ? ' today' : '') + (future ? ' future' : ''), title: longDate(rg.date) + (future ? '' : ' — 누르면 그 날 하루') }, [
+        h('span', { class: 'w', text: WEEK[dt.getDay()] + ' ' + dt.getDate() }),
+        h('span', { class: 'a', text: (sm.active_sec || 0) >= 60 ? fmtShort(sm.active_sec) : (future ? ' ' : '—') }),
+        h('span', { class: 't', text: came ? hm(sm.first_active) + '→' + (sm.in_progress ? '지금' : hm(sm.last_active)) : ' ' })
       ]);
+      if (future) b.disabled = true;
+      else b.addEventListener('click', function () { setView('day', rg.date); });
+      b.addEventListener('mouseenter', function () { state.obDay = i; orbitMark(); });
+      b.addEventListener('mouseleave', function () { state.obDay = -1; orbitMark(); });
+      box.appendChild(b);
+    });
+    orbitMark();
+  }
+
+  // ---- §55.4 월 = 달력에 날마다 작은 궤도(구간 색 그대로) · 고리 안 활동 시간 · 아래 한 줄(일정 · 마감, 없으면 밤 계획)
+  function fmtCompact(sec) { var m = mins(sec); return m < 60 ? m + 'm' : Math.floor(m / 60) + 'h' + pad2(m % 60); }
+  function renderMonthGrid() {
+    var grid = $('om-grid'), head = $('om-head');
+    if (!grid || !head || state.view !== 'month' || !state.date) return;
+    clear(grid); clear(head);
+    WEEK_MON.forEach(function (n, i) { head.appendChild(h('div', { class: 'omw' + (i >= 5 ? ' wkend' : ''), text: n })); });
+    var p = periodOf('month', state.date), days = rangeDayList(p), today = todayStr(), nights = {}, evs = {};
+    ((state.period && state.period.days) || []).forEach(function (x) { if (x.night) nights[x.date] = x.night; if (x.events && x.events.length) evs[x.date] = x.events; });
+    var lead = (parseDate(p.start).getDay() + 6) % 7, rows = Math.ceil((lead + days.length) / 7);
+    grid.style.setProperty('--rows', rows);
+    for (var i = 0; i < lead; i++) grid.appendChild(h('div', { class: 'om-cell pad' }));
+    days.forEach(function (d) {
+      var sm = d.summary || {}, dt = parseDate(d.date), isT = d.date === today, future = d.date > today;
+      var came = sm.first_active !== null && sm.first_active !== undefined, act = sm.active_sec || 0, ev = evs[d.date] || [], n = nights[d.date];
+      var tip = koreanDate(d.date) + (isT ? ' · 오늘' : '');
+      if (came) tip += '\n출근 → 퇴근: ' + hm(sm.first_active) + ' → ' + (sm.in_progress ? '진행 중' : hm(sm.last_active));
+      if (act > 0) tip += '\n활동 ' + fmtHM(act);
+      if (sm.distraction_sec) tip += '\n딴짓 ' + mins(sm.distraction_sec) + '분';
+      if (n) tip += '\n' + nightText(n);
+      ev.forEach(function (x) { tip += '\n' + (x.kind === 'deadline' ? '마감: ' : '') + x.title; });
+      tip += '\n(누르면 그 날 하루)';
+      var line = ev[0] ? (ev[0].kind === 'deadline' ? '마감 ' : '') + ev[0].title + (ev.length > 1 ? ' 외 ' + (ev.length - 1) : '') : (n ? nightText(n).replace('밤 · ', '밤 ') : '');
+      var cell = h('button', { type: 'button', title: tip,
+        class: 'om-cell' + (isT ? ' today' : '') + (future ? ' future' : '') + (dt.getDay() === 0 || dt.getDay() === 6 ? ' wkend' : '') }, [
+        h('span', { class: 'om-d', text: String(dt.getDate()) }),
+        h('span', { class: 'om-o' }, [miniOrbit(d, d.date, false, true), h('span', { class: 'om-a', text: act >= 60 ? fmtCompact(act) : '' })]),
+        h('span', { class: 'om-e' + (ev[0] && !ev[0].done ? ' evt' : '') + (ev[0] && ev[0].done ? ' done' : ''), text: line || ' ' })
+      ]);
+      cell.addEventListener('click', function () { setView('day', d.date); });
       grid.appendChild(cell);
     });
-    var trail = (7 - (lead + days.length) % 7) % 7;
-    for (var j = 0; j < trail; j++) grid.appendChild(h('div', { class: 'mcell pad' }));
-    emptyEl.hidden = anyActive;
+    for (var j = (lead + days.length) % 7 ? 7 - (lead + days.length) % 7 : 0; j > 0; j--) grid.appendChild(h('div', { class: 'om-cell pad' }));
+    // 달력 위 한 줄 — 기간 숫자도 줄지 않는다
+    var st = periodStats(days), bits = [];
+    if (st.n) {
+      bits.push('출근 ' + st.n + '일');
+      bits.push('활동 ' + fmtHM(st.active) + ' (일평균 ' + fmtHM(st.active / st.n) + ')');
+      if (st.inAvg) bits.push('평균 ' + st.inAvg + ' → ' + (st.outAvg || '—'));
+      bits.push('딴짓 ' + Math.round(st.dist / st.active * 100) + '%');
+      if (st.best) bits.push('가장 긴 날 ' + mdStr(st.best.date) + ' ' + fmtHM(st.best.sec));
+    } else bits.push(state.range ? '이 달에는 기록이 없습니다' : '불러오는 중…');
+    $('om-sum').textContent = bits.join(' · ');
   }
 
   // ---- 기간 요약 카드 (주·월)
   function renderRangeSummary() {
     if (state.view === 'day') return;
-    var p = periodOf(state.view, state.date);
-    var days = rangeDayList(p);
-    var h0 = state.config.day_start_hour || 4;
-    var n = 0, active = 0, dist = 0, entries = 0, sumIn = 0, nIn = 0, sumOut = 0, nOut = 0, best = null;
-    days.forEach(function (d) {
-      var sm = d.summary || {};
-      var a = sm.active_sec || 0;
-      if (sm.first_active === null || sm.first_active === undefined || !(a > 0)) return; // 활동 0 인 날 제외
-      n++; active += a; dist += sm.distraction_sec || 0; entries += sm.distraction_entries || 0;
-      var ws = d.window.start;
-      sumIn += sm.first_active - ws; nIn++;
-      if (sm.last_active !== null && sm.last_active !== undefined && !sm.in_progress) { sumOut += sm.last_active - ws; nOut++; }
-      if (!best || a > best.sec) best = { date: d.date, sec: a };
-    });
-    function avgHM(secFromWindow) {
-      var t = h0 * 3600 + secFromWindow;
-      return pad2(Math.floor(t / 3600) % 24) + ':' + pad2(Math.floor((t % 3600) / 60));
-    }
-    $('sum-attend').textContent = n + '일';
-    $('sum-active').textContent = active > 0 ? fmtHM(active) : '—';
+    var st = periodStats(rangeDayList(periodOf(state.view, state.date)));
+    $('sum-attend').textContent = st.n + '일';
+    $('sum-active').textContent = st.active > 0 ? fmtHM(st.active) : '—';
     var sub = $('sum-active-sub');
-    sub.textContent = n > 0 ? '일평균 ' + fmtHM(active / n) : '';
-    sub.hidden = !(n > 0);
-    if (active > 0) {
-      $('sum-distraction').textContent = mins(dist) + '분 · ' + Math.round(dist / active * 100) + '%';
-      $('sum-distraction-sub').textContent = '진입 ' + entries + '회';
+    sub.textContent = st.n > 0 ? '일평균 ' + fmtHM(st.active / st.n) : '';
+    sub.hidden = !(st.n > 0);
+    if (st.active > 0) {
+      $('sum-distraction').textContent = mins(st.dist) + '분 · ' + Math.round(st.dist / st.active * 100) + '%';
+      $('sum-distraction-sub').textContent = '진입 ' + st.entries + '회';
     } else {
       $('sum-distraction').textContent = '—';
       $('sum-distraction-sub').textContent = '';
     }
-    $('sum-away').textContent = nIn > 0 ? avgHM(sumIn / nIn) + ' → ' + (nOut > 0 ? avgHM(sumOut / nOut) : '—') : '—';
-    $('sum-focus').textContent = best ? mdStr(best.date) + ' · ' + fmtShort(best.sec) : '—';
+    $('sum-away').textContent = st.inAvg ? st.inAvg + ' → ' + (st.outAvg || '—') : '—';
+    $('sum-focus').textContent = st.best ? mdStr(st.best.date) + ' · ' + fmtShort(st.best.sec) : '—';
   }
 
   // ---- 기간 미분류 Top 5 ((exe, 표시 이름) 합산 — 서버의 하루 unknown_top 과 같은 키. name 이 없으면 (exe,title))
@@ -3617,13 +3456,13 @@
       out = { paused_until: db.pausedUntil };
     } else if (p === '/api/config') out = db.day.config;
     else if (p === '/api/range') {
-      var days = [], cur = q.start, guard = 0, withSpans = q.spans === '1';
+      var days = [], cur = q.start, guard = 0, withSpans = q.spans === '1' || q.spans === 'lite';
       if (!cur || !q.end || cur > q.end) out = { error: 'start/end 가 필요합니다' };
       else {
         while (cur <= q.end && guard++ < 62) {
           var md = mockDayFor(db, cur);
           var item = { date: md.date, window: md.window, summary: md.summary };
-          if (withSpans) item.spans = md.spans;
+          if (withSpans) item.spans = q.spans === 'lite' ? md.spans.map(function (x) { return { start: x.start, end: x.end, category: x.category }; }) : md.spans;
           days.push(item);
           cur = shiftDate(cur, 1);
         }
@@ -3895,129 +3734,6 @@
   else init();
 
   // 디버그용 노출
-  // ============================================================ 시간축 확대·축소 — DESIGN §14
-  // 배율 state.pxPerMin 은 하루·주 보기 공용. zoomFit=true 면 renderTimeline/renderWeek 가 매번 fitPxFor 로 다시 계산한다.
-  function clampPx(v) { return Math.min(PX_MAX, Math.max(PX_MIN, v)); }
-  function tickStep(px) { return px >= 0.9 ? 1 : (px >= 0.45 ? 2 : 3); } // 라벨 간격(시간)
-
-  // 시각 눈금·격자 (하루·주 보기 공통). step 배수 시각 + 표시 범위의 양끝(startHour/endHour)은 항상 선을 긋고,
-  // 양끝 라벨은 이웃 라벨과 겹치면(간격 < LABEL_MIN_GAP px) 생략한다. step===1 이면 30분 점선.
-  var LABEL_MIN_GAP = 14;
-  function drawHourGrid(startHour, endHour, px, width) {
-    var g = s('g', { class: 'grid' });
-    var step = tickStep(px);
-    var isTick = function (hh) { return hh % step === 0; };
-    var yAt = function (hh) { return PAD_TOP + (hh - startHour) * 60 * px; };
-    var lastLabelY = -Infinity;
-    for (var hh = startHour; hh <= endHour; hh++) {
-      var edge = hh === startHour || hh === endHour;
-      if (!isTick(hh) && !edge) continue;
-      var y = yAt(hh);
-      g.appendChild(s('line', { class: 'grid-line' + ((hh % 24) % 6 === 0 ? ' major' : ''), x1: GUTTER, y1: y, x2: width, y2: y }));
-      var label = true;
-      if (!isTick(hh)) {
-        if (hh === startHour) { // 다음 정규 라벨과 겹치면 시작 라벨 생략
-          var next = hh + 1; while (next <= endHour && !isTick(next)) next++;
-          if (next <= endHour && yAt(next) - y < LABEL_MIN_GAP) label = false;
-        }
-        if (hh === endHour && y - lastLabelY < LABEL_MIN_GAP) label = false; // 이전 라벨과 겹치면 끝 라벨 생략
-      }
-      if (label) {
-        g.appendChild(s('text', { class: 'hour-label', x: GUTTER - 6, y: y + 4, 'text-anchor': 'end', text: pad2(hh % 24) + ':00' }));
-        lastLabelY = y;
-      }
-      if (step === 1 && hh < endHour) {
-        var y30 = y + 30 * px;
-        g.appendChild(s('line', { class: 'grid-line', x1: GUTTER, y1: y30, x2: width, y2: y30, 'stroke-dasharray': '2 4' }));
-      }
-    }
-    return g;
-  }
-
-  // 맞춤: (스크롤 컨테이너 clientHeight − 상하 여백) / 표시 분수 → 스크롤바 없이 한 화면에
-  function fitPxFor(container, minutes) {
-    var ch = container && container.clientHeight ? container.clientHeight : 600;
-    var avail = ch - PAD_TOP - PAD_BOTTOM - 1; // −1: 반올림으로 1px 넘쳐 스크롤바가 생기는 것 방지
-    return clampPx(avail / Math.max(60, minutes || 0));
-  }
-
-  function loadZoomPref() {
-    try {
-      var v = parseFloat(localStorage.getItem(ZOOM_KEY));
-      if (isFinite(v) && v > 0) { state.pxPerMin = clampPx(v); state.zoomFit = false; return; }
-    } catch (e) { /* 저장소 사용 불가 → 맞춤 */ }
-    state.zoomFit = true;
-  }
-  function saveZoomPref() { try { localStorage.setItem(ZOOM_KEY, String(state.pxPerMin)); } catch (e) { /* 무시 */ } }
-  function clearZoomPref() { try { localStorage.removeItem(ZOOM_KEY); } catch (e) { /* 무시 */ } }
-
-  function zoomContainer() {
-    if (state.view === 'day') return $('timeline-scroll');
-    if (state.view === 'week') return $('week-scroll');
-    return null;
-  }
-  function rerenderZoomView() {
-    if (state.view === 'day') { if (state.day) renderTimeline(false); }
-    else if (state.view === 'week') { if (state.range) renderWeek(); }
-  }
-
-  // 배율 변경. anchorY = 컨테이너의 보이는 영역 기준 y(px). 그 위치의 시각이 변경 전후 같도록 scrollTop 을 맞춘다.
-  function setZoom(newPx, anchorY) {
-    var c = zoomContainer();
-    if (!c) return; // 월 보기: 무관
-    if (state.popover) closePopover(); // SVG 를 통째로 다시 그리므로 팝오버는 닫는다 (setView 와 같은 규칙)
-    newPx = clampPx(newPx);
-    var oldPx = state.pxPerMin || 1;
-    if (anchorY === undefined || anchorY === null) anchorY = c.clientHeight / 2;
-    var minAtAnchor = (c.scrollTop + anchorY - PAD_TOP) / oldPx;
-    state.pxPerMin = newPx;
-    state.zoomFit = false;
-    saveZoomPref();
-    rerenderZoomView();
-    c.scrollTop = Math.max(0, PAD_TOP + minAtAnchor * newPx - anchorY);
-  }
-
-  // 맞춤: 저장값 삭제 + fit 재계산 (렌더 안에서). 한 화면에 들어오면 스크롤 0,
-  // PX_MIN 클램프로 넘치면 최초 스크롤 규칙(현재 시각 / 첫 기록)을 다시 적용한다.
-  function zoomFit() {
-    if (state.popover) closePopover();
-    clearZoomPref();
-    state.zoomFit = true;
-    if (state.view === 'day') state.scrolledOnce = false; else state.weekScrolledOnce = false;
-    rerenderZoomView();
-    var c = zoomContainer();
-    if (c && c.scrollHeight <= c.clientHeight + 2) c.scrollTop = 0;
-  }
-
-  // Ctrl+휠(트랙패드 핀치 포함)만 처리. 커서 아래 시각 고정. Ctrl 없는 휠은 평소대로 스크롤.
-  // 배율 변화는 deltaY 크기에 비례: 마우스 휠 한 칸(±100px) = 정확히 ×/÷1.15, 핀치의 작은 delta(±1~10) 는 그만큼 미세하게.
-  // 리스너는 툴바·열 머리까지 포함한 바깥 영역(#timeline-wrap / #week-wrap)에 걸어 그 위에서도 페이지 확대가 새지 않게 한다.
-  function onZoomWheel(ev) {
-    if (!ev.ctrlKey) return;
-    ev.preventDefault();
-    if (!ev.deltaY) return;
-    var c = zoomContainer();
-    if (!c) return;
-    var offsetY = ev.clientY - c.getBoundingClientRect().top;
-    if (!(offsetY >= 0 && offsetY <= c.clientHeight)) offsetY = c.clientHeight / 2; // 툴바·열 머리 위: 중앙 고정
-    var dy = ev.deltaY;
-    if (ev.deltaMode === 1) dy *= 33; else if (ev.deltaMode === 2) dy *= 100; // 줄/페이지 단위(Firefox 등) → px 환산
-    var amount = Math.min(1, Math.max(-1, -dy / 100));
-    setZoom(state.pxPerMin * Math.pow(ZOOM_STEP_WHEEL, amount), offsetY);
-  }
-
-  function wireZoom() {
-    $('timeline-wrap').addEventListener('wheel', onZoomWheel, { passive: false });
-    $('week-wrap').addEventListener('wheel', onZoomWheel, { passive: false });
-    // 툴바는 하루·주 컨테이너에 하나씩 (같은 동작). −/+ 는 컨테이너 중앙 시각 고정
-    Array.prototype.forEach.call(document.querySelectorAll('.zoom-bar'), function (bar) {
-      bar.querySelector('.zoom-out').addEventListener('click', function () { setZoom(state.pxPerMin / ZOOM_STEP_BTN); });
-      bar.querySelector('.zoom-in').addEventListener('click', function () { setZoom(state.pxPerMin * ZOOM_STEP_BTN); });
-      bar.querySelector('.zoom-fit').addEventListener('click', zoomFit);
-    });
-  }
-
   window.MAENG = { state: state, api: api, loadDay: loadDay, loadStatus: loadStatus, renderTimeline: renderTimeline, openPopover: openPopover, closePopover: closePopover,
-    setView: setView, loadRange: loadRange, renderWeek: renderWeek, renderMonth: renderMonth,
-    setZoom: setZoom, zoomFit: zoomFit, fitPxFor: fitPxFor, PAD_TOP: PAD_TOP };
+    setView: setView, loadRange: loadRange, renderOrbit: renderOrbit, oz: oz, ozGo: ozGo, ozReset: ozReset };
 })();

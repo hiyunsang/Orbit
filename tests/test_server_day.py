@@ -187,6 +187,12 @@ class ServerDayTest(unittest.TestCase):
         self.assertEqual(res2["days"][1]["spans"], day["spans"])
         self.assertEqual(res2["days"][1]["summary"], day["summary"])
         self.assertIn("spans", res2["days"][0])
+        # §55.4 spans=lite: 같은 구간을 시각 · 분류만으로(월 달력의 궤도)
+        q["spans"] = ["lite"]
+        res3 = server.api_range(self.conn, q, {})
+        self.assertEqual(res3["days"][1]["spans"], [{"start": x["start"], "end": x["end"], "category": x["category"]} for x in day["spans"]])
+        self.assertTrue(res3["days"][1]["spans"])
+        self.assertEqual(res3["days"][1]["summary"], day["summary"])
 
     def test_range_62_day_limit(self):
         # 62일(포함)은 허용, 63일은 400
