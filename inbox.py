@@ -151,9 +151,10 @@ def history(conn, iid, now=None, limit=HIST_N):
 def prompt(text, today, ctx, hist=None, clock=None, target=None):
     wd = plans._wd(today)
     # §57.5 '내일' 단추로 적은 글 — 날짜 없는 할 일은 그대로 그 날 목록으로 가고, 날짜 없는 일정 · 마감만 그 날로
-    aim = ("[이 글은 사용자가 '%s' 단추를 누르고 적었다 — %s(%s요일) 할 것] 날짜 표현이 없는 task 는 day 를 null 로 둔다(그대로 그 날 "
+    aim = ("[이 글은 사용자가 %s 적었다 — %s(%s요일) 할 것] 날짜 표현이 없는 task 는 day 를 null 로 둔다(그대로 그 날 "
            "할 일 목록에 들어간다). 날짜 표현이 없는 event · deadline 은 day = %s.\n\n"
-           % ("내일" if target == (datetime.datetime.strptime(today, "%Y-%m-%d") + datetime.timedelta(days=1)).strftime("%Y-%m-%d") else target, target, plans._wd(target), target)) if target and target > today else ""
+           % ("'내일' 단추를 누르고" if target == (datetime.datetime.strptime(today, "%Y-%m-%d") + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+              else "날짜 칸에서 그 날을 고르고", target, plans._wd(target), target)) if target and target > today else ""
     clock = clock or time.strftime("%H:%M")                     # §57 밤에 적는 할 일은 대개 다음 출근 날 것
     have = "\n".join(ctx) if ctx else "(없음)"
     talk = "\n".join("- 적은 글: %s\n  네가 한 말: %s" % (re.sub(r"\s+", " ", t)[:400], (r or "(없음)")) for t, r in (hist or []))

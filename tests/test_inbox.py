@@ -77,6 +77,7 @@ class PureTest(unittest.TestCase):
         self.assertIn("[이 글은 사용자가 '내일' 단추를 누르고 적었다 — 2026-11-16(월요일) 할 것]", pt)
         self.assertIn("날짜 표현이 없는 task 는 day 를 null 로 둔다", pt)
         self.assertNotIn("단추를 누르고", inbox.prompt("x", TODAY, [], target=TODAY), "오늘이면 알리지 않는다")
+        self.assertIn("[이 글은 사용자가 날짜 칸에서 그 날을 고르고 적었다 — 2026-11-20(금요일) 할 것]", inbox.prompt("x", TODAY, [], target="2026-11-20"))
         p = inbox.prompt("발표 12/3", TODAY, [], [("학회 KTX 숙소", "학회 발표가 며칠이에요?")])
         self.assertIn("- 적은 글: 학회 KTX 숙소\n  네가 한 말: 학회 발표가 며칠이에요?", p)
 

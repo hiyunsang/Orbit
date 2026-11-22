@@ -159,8 +159,11 @@
       <!-- §51 받아 적기: 떠오르는 대로 적으면 claude 가 할 일 · 마감 · 일정 · 기억으로 나눈다. Enter = 넣기, Shift+Enter = 줄바꿈 -->
       <div class="todo-input-row">
         <textarea id="todo-input" rows="1" placeholder="떠오르는 대로 — 할 일 · 일정 · 기억할 것" title="여러 가지를 한꺼번에 적어도 됩니다. 할 일 · 마감 · 일정 · 기억할 것으로 알아서 나누고, '끝냈다' 고 적으면 그 할 일을 끝냅니다. Enter 로 넣기, Shift+Enter 로 줄바꿈"></textarea>
-        <button class="tmr" id="btn-todo-tmr" type="button" aria-pressed="false" title="누르면 내일 할 일로 적는다 — 다시 누르면 오늘">내일</button>
         <button class="primary" id="btn-todo-add" title="넣기">추가</button>
+      </div>
+      <!-- §57.5 언제 할 일인가: 오늘(기본) · 내일 · 날짜 — 고른 것은 그 날 동안 남는다 -->
+      <div class="todo-when" id="todo-when" role="group" aria-label="언제 할 일">
+        <button type="button" data-when="today" aria-pressed="true">오늘</button><button type="button" data-when="tmr" aria-pressed="false">내일</button><span class="tw-date"><button type="button" data-when="date" id="tw-date-label" aria-pressed="false">날짜</button><input type="date" id="tw-date" aria-label="할 날 고르기"></span>
       </div>
       <ul class="list todo-list" id="todo-list"></ul>
       <div class="ph-list" id="ph-todo-list"></div>

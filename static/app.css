@@ -652,9 +652,12 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
   #main.phone-pages #sidebar input::placeholder, #main.phone-pages #sidebar textarea::placeholder { font-size: 14px; color: var(--text-3); }   /* 글자는 16(아이폰 확대 방지), 안내만 작게 */
   #main.phone-pages #card-todos .todo-input-row { align-items: flex-end; }
   #main.phone-pages #card-todos #btn-todo-add { flex: none; height: 42px; min-height: 0; padding: 0 16px; border-radius: 8px; font-size: 14px; font-weight: 500; }
-  /* §57.5 '내일' 단추 — 켜면 밝게(채움), 끄면 조용한 테두리 */
-  #card-todos .tmr { flex: none; height: 42px; padding: 0 12px; border: 1px solid var(--line-2); border-radius: 8px; background: transparent; font: inherit; font-size: 14px; color: var(--text-3); cursor: pointer; -webkit-tap-highlight-color: transparent; }
-  #card-todos .tmr.on { border-color: var(--text); background: var(--fill); color: var(--text); font-weight: 500; }
+  /* §57.5 언제: 오늘 · 내일 · 날짜 — 고른 것만 밝게(채움), 나머지는 조용한 테두리 */
+  #card-todos .todo-when { display: flex; gap: 6px; margin: 2px 0 6px; }
+  #card-todos .todo-when button { height: 30px; padding: 0 13px; border: 1px solid var(--line-2); border-radius: 15px; background: transparent; font: inherit; font-size: 13px; color: var(--text-3); cursor: pointer; white-space: nowrap; -webkit-tap-highlight-color: transparent; }
+  #card-todos .todo-when button.on { border-color: var(--text); background: var(--fill); color: var(--text); font-weight: 500; }
+  #card-todos .tw-date { position: relative; display: inline-flex; }
+  #card-todos .tw-date input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; }   /* 폰은 눌러서 바로 달력 */
   /* 줄 — 사이는 1px 선 */
   .ph-list { display: block; }
   .ph-gh { padding: 18px 0 7px; font-size: 13px; font-weight: 400; color: var(--text-3); }
