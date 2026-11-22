@@ -386,6 +386,12 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
 .anki-days span.on { border-top-color: var(--accent); color: var(--text); }
 .anki-days span.today { font-weight: 500; }
 .anki-days i { display: block; font-style: normal; font-size: 10px; color: var(--text-3); }
+.anki-prog { margin-top: var(--s2); }
+.ap-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 5px 0 6px; font-size: 12px; color: var(--text-2); }
+.ap-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.ap-v { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ap-bar { grid-column: 1 / -1; height: 2px; background: var(--line); }
+.ap-bar i { display: block; height: 100%; background: var(--text-2); }
 .anki-none { font-size: 12px; color: var(--text-2); line-height: 1.5; margin-top: var(--s1); }
 .anki-none code { font-family: var(--font); background: var(--bg); padding: 0 4px; border-radius: var(--r); }
 
@@ -585,10 +591,10 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
   #main.phone-pages.pg-home.hero-open > .day-summary .sum-value { font-size: 15px; font-weight: 500; margin-top: 2px; }
   #main.phone-pages.pg-home > #phone-more { display: block; order: 3; }
   #main.phone-pages.pg-home #card-tonight:not([hidden]), #main.phone-pages.pg-home #card-todos, #main.phone-pages.pg-home #card-keeps, #main.phone-pages.pg-home #card-events, #main.phone-pages.pg-home #card-notes,
-  #main.phone-pages.pg-home #card-night, #main.phone-pages.pg-home #card-drawer, #main.phone-pages.pg-home #card-notices:not([hidden]),
+  #main.phone-pages.pg-home #card-night, #main.phone-pages.pg-home #card-drawer, #main.phone-pages.pg-home #card-notices:not([hidden]), #main.phone-pages.pg-home #card-anki:not([hidden]),
   #main.phone-pages.pg-home #card-unknown, #main.phone-pages.pg-home #card-pause, #main.phone-pages.pg-home #card-reading:not([hidden]),
   #main.phone-pages.pg-home #card-devices:not([hidden]), #main.phone-pages:not(.view-day) #card-period:not([hidden]) { display: block !important; }
-  #card-tonight { order: 1; } #card-todos { order: 2; } #card-keeps { order: 2; } #card-events { order: 3; } #card-notes { order: 4; } #card-night { order: 5; } #card-drawer { order: 6; }
+  #card-tonight { order: 1; } #card-todos { order: 2; } #card-keeps { order: 2; } #card-events { order: 3; } #card-anki { order: 3; } #card-notes { order: 4; } #card-night { order: 5; } #card-drawer { order: 6; }
   #card-notices { order: 7; } #card-unknown { order: 8; } #card-pause { order: 9; } #card-reading { order: 10; } #card-devices { order: 11; }
   /* 화면 머리: 날짜가 제목 */
   .phone-head { padding: 20px var(--gut) 10px; }
@@ -680,6 +686,12 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
   .ph-tag { flex: none; padding-top: 2px; font-family: var(--mono); font-size: 12px; letter-spacing: 0; word-spacing: -0.3em; color: var(--text-3); white-space: nowrap; cursor: pointer; }   /* 오른쪽 열: D-3 · 오늘 · 2일 지남 */
   .ph-tag.late { color: var(--red); }
   .ph-tag.soon { color: var(--amber); }
+  /* §59 Anki 칸: 한 장(폰 규칙)의 글자 크기로 */
+  #main.phone-pages #card-anki { border-top: 1px solid var(--line); }
+  #main.phone-pages #card-anki .anki-main .big { font-size: 24px; }
+  #main.phone-pages #card-anki .anki-main .big small, #main.phone-pages #card-anki .anki-row, #main.phone-pages #card-anki .ap-row, #main.phone-pages #card-anki .anki-none { font-size: 13px; }
+  #main.phone-pages #card-anki .anki-days span { font-size: 12px; }
+  #main.phone-pages #card-anki .anki-days span.on { border-top-color: var(--text); }
   /* §58 한 줄 = 제목 + 오른쪽 한 마디 — 둘째 줄(분야 · 적은 날 · 날짜)은 눌러 펼쳤을 때만 */
   .ph-row:not(.open):not(.inbox) > .ph-b > .ph-m { display: none; }
   .ph-tag.doing { color: var(--text-2); }

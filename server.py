@@ -359,7 +359,7 @@ def _display_config():
         "night_prompt_hour": CFG.get("night_prompt_hour", 16),
         "night_band_end_hour": CFG.get("night_band_end_hour", 23),
         "budget_card": bool(CFG.get("budget_card", False)),
-        "anki_card": bool(CFG.get("anki_card", False)),
+        "anki_card": bool(CFG.get("anki_card", False)) or _anki_mirror_on(),     # §59 사본이 켜져 있으면 칸도 켠다
     }
 
 
@@ -1100,6 +1100,35 @@ def api_schedule_get(conn, query, body):
 
 
 # ── Anki 복습 모니터 (§31) ─────────────────────────────────────
+def _anki_mirror_on():
+    m = getattr(anki_stats, "anki_mirror", None) if anki_stats is not None else None
+    try:
+        return bool(m is not None and m.enabled(CFG))
+    except Exception:           # noqa: BLE001
+        return False
+
+
+def api_anki_mirror(conn, query, body):
+    """POST /api/anki/mirror {on} — §59 Orbit 이 직접 AnkiWeb 에서 받아 오는 사본을 켜고 끈다(이 PC 에서만).
+    켜면 바로 한 번 받는다. 끄면 표시만 지운다(받아 둔 사본 파일은 남는다)."""
+    m = getattr(anki_stats, "anki_mirror", None) if anki_stats is not None else None
+    if m is None:
+        raise ApiError(501, "Anki 사본 모듈이 없습니다")
+    on = body.get("on")
+    on = on is True or on == 1 or on == "1" or on == "true"
+    if on:
+        if not m.find_anki(CFG)[0]:
+            raise ApiError(409, "이 PC 에 Anki 가 없습니다 — Anki 를 설치하고 AnkiWeb 에 로그인해 주세요")
+        m.enable(CFG)
+        m.maybe_sync(force=True, cfg=CFG)
+    else:
+        try:
+            os.remove(os.path.join(m.mirror_dir(CFG), "on"))
+        except OSError:
+            pass
+    return {"ok": True, "on": bool(m.enabled(CFG)), "status": m.status()}
+
+
 def api_anki_get(conn, query, body):
     if anki_stats is None:
         return {"available": False, "reason": ANKI_ERROR, "data": None}
@@ -1928,7 +1957,7 @@ _FWD_HEADERS = ("X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto", "For
 _OPEN_PATHS = {"/login", "/api/login"}
 _OPEN_STATIC = {"manifest.json", "favicon.svg", "horarium.ico", "icon-180.png", "icon-192.png", "icon-512.png",
                 "logo-mark.svg", "logo-mark-clock.svg", "PretendardVariable.woff2"}      # 로그인 화면·홈 화면 아이콘의 재료
-_LOCAL_ONLY_POST = {"/api/devices", "/api/restart", "/api/drawer/reveal", "/api/drawer/drag"}
+_LOCAL_ONLY_POST = {"/api/devices", "/api/restart", "/api/drawer/reveal", "/api/drawer/drag", "/api/anki/mirror"}
 
 
 def _devices_path():
@@ -2402,6 +2431,7 @@ ROUTES = {
     ("POST", "/api/drawer/delete"): api_drawer_delete,
     ("POST", "/api/drawer/reveal"): api_drawer_reveal,
     ("POST", "/api/drawer/drag"): api_drawer_drag,
+    ("POST", "/api/anki/mirror"): api_anki_mirror,
     ("GET", "/api/devices"): api_devices_get,
     ("POST", "/api/devices"): api_devices_post,
     ("POST", "/api/restart"): api_restart,

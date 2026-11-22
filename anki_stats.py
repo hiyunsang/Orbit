@@ -16,6 +16,7 @@ import datetime
 import glob
 import json
 import os
+import re
 import shutil
 import sqlite3
 import tempfile
@@ -33,6 +34,13 @@ _cache = {"path": None, "mtime": None, "at": 0, "data": None}
 # AnkiConnect 상태 — present: 마지막으로 물었을 때 답했는가(None=아직 모름), busy: sync 진행 중
 _connect = {"present": None, "busy": False, "last_try": 0, "last_ok": 0, "error": None}
 _connect_lock = threading.Lock()
+DAY_TAG = re.compile(r"(?:^|\s)Day\s?0*(\d{1,3})(?=\s|$)", re.I)    # §59 노트 태그의 Day01 · Day 12 — 단어장의 '몇째 날'
+PROGRESS_MAX = 5
+
+try:
+    import anki_mirror          # §59 Orbit 이 직접 받아 오는 사본
+except Exception:               # noqa: BLE001 — 없어도 §31 의 길(이 PC 의 Anki 파일)은 그대로
+    anki_mirror = None
 
 
 def find_collection(appdata=None):
@@ -130,6 +138,7 @@ def compute(con, now=None):
         by_deck[top] = by_deck.get(top, 0) + int(n)
     decks = sorted(by_deck.items(), key=lambda x: -x[1])
 
+    progress = _progress(con, names, day0, by_deck)
     last = rv("SELECT max(id) FROM revlog")[0]
     total_cards = rv("SELECT count(*) FROM cards")[0]
     mature = rv("SELECT count(*) FROM cards WHERE queue = 2 AND ivl >= 21")[0]
@@ -143,10 +152,52 @@ def compute(con, now=None):
         "due": {"review": int(due_review), "learn": int(due_learn), "new_waiting": int(new_waiting)},
         "days": days[-7:], "days30": days, "streak": int(streak), "retention30": retention30,
         "decks": [{"name": k, "n": v} for k, v in decks[:6]],
+        "progress": progress,
         "last_review": (last / 1000.0) if last else None,
         "last_sync": (ls / 1000.0) if ls else None,
         "cards": {"total": int(total_cards), "mature": int(mature)},
     }
+
+
+def _progress(con, names, day0, by_deck):
+    """§59 덱 진행 — 맨 위 덱마다 전체 · 본 것(새 카드가 아닌 것) · 오늘 처음 본 것 · 오늘 복습.
+    노트 태그에 DayNN 이 있으면 지금 Day(본 카드 가운데 가장 큰 번호) / 마지막 Day. 아직 새 카드가 남았거나 한 달 안에 본 덱만,
+    오늘 한 것 → 최근에 본 것 → 큰 것 순으로 PROGRESS_MAX 개."""
+    top = lambda did: names.get(int(did), str(did)).split("::")[0]
+    prog = {}
+    try:
+        for did, n, seen in con.execute("SELECT did, count(*), sum(case when type != 0 then 1 else 0 end) FROM cards GROUP BY did"):
+            p = prog.setdefault(top(did), {"total": 0, "learned": 0, "new_today": 0, "day": None, "days": None, "last": 0})
+            p["total"] += int(n)
+            p["learned"] += int(seen or 0)
+        for did, n in con.execute("SELECT c.did, count(*) FROM (SELECT cid, min(id) AS mid FROM revlog GROUP BY cid) f "
+                                  "JOIN cards c ON c.id = f.cid WHERE f.mid >= ? GROUP BY c.did", (int(day0 * 1000),)):
+            if top(did) in prog:
+                prog[top(did)]["new_today"] += int(n)
+        for did, last in con.execute("SELECT c.did, max(r.id) FROM revlog r JOIN cards c ON c.id = r.cid GROUP BY c.did"):
+            if top(did) in prog and last:
+                prog[top(did)]["last"] = max(prog[top(did)]["last"], last / 1000.0)
+    except sqlite3.Error:
+        return []
+    try:
+        for did, typ, tags in con.execute("SELECT c.did, c.type, n.tags FROM cards c JOIN notes n ON n.id = c.nid"):
+            m = DAY_TAG.search(tags or "")
+            if not m or top(did) not in prog:
+                continue
+            p, k = prog[top(did)], int(m.group(1))
+            p["days"] = max(p["days"] or 0, k)
+            if typ != 0:
+                p["day"] = max(p["day"] or 0, k)
+    except sqlite3.Error:
+        pass                    # 옛 모음 · 가짜 모음에 notes 가 없으면 Day 는 뺀다
+    out = []
+    for name, p in prog.items():
+        if p["total"] <= p["learned"] and p["last"] < day0 - 30 * 86400:
+            continue            # 다 본 지 한 달 넘은 덱은 진행 줄에서 뺀다
+        out.append({"name": name, "total": p["total"], "learned": p["learned"], "new_today": p["new_today"],
+                    "today": int(by_deck.get(name, 0)), "day": p["day"], "days": p["days"], "last": p["last"] or None})
+    out.sort(key=lambda x: (-x["today"], -(x["last"] or 0), -x["total"]))
+    return out[:PROGRESS_MAX]
 
 
 def read_collection(path, now=None):
@@ -229,18 +280,40 @@ def maybe_sync(now=None, post=None, url=None, every=None, force=False, wait=Fals
     return True
 
 
+def mirror_status():
+    """§59 사본 상태 — 켜져 있지 않으면 None."""
+    if anki_mirror is None or not anki_mirror.enabled():
+        return None
+    s = anki_mirror.status()
+    return {"on": True, "busy": bool(s.get("busy")), "last_ok": s.get("last_ok") or None, "error": s.get("error")}
+
+
 def snapshot(now=None, appdata=None, force=False, sync=None):
     """GET /api/anki 의 본체. 파일이 바뀌었거나 10분이 지났으면 다시 읽고, 아니면 캐시.
-    `sync` 가 참이면(기본: 실제 환경, 즉 appdata 를 안 준 때) AnkiConnect 로 동기화를 눌러 본다."""
+    §59 사본이 켜져 있으면(실제 환경에서만) 그 사본을 읽고 Orbit 이 직접 AnkiWeb 에서 받아 온다.
+    아니면 §31 — 이 PC 의 Anki 파일을 읽고, `sync` 가 참이면 AnkiConnect 로 동기화를 눌러 본다."""
     now = now or time.time()
     if sync is None:
         sync = appdata is None
+    mirror = appdata is None and anki_mirror is not None and anki_mirror.enabled()
+    if mirror:
+        if sync:
+            anki_mirror.maybe_sync(now, force=force)
+        path = anki_mirror.collection_path()
+        if not os.path.exists(path):
+            return {"available": False, "reason": "AnkiWeb 에서 처음 받는 중입니다", "data": None,
+                    "connect": connect_status(), "mirror": mirror_status()}
+        return _read_cached(path, now, force, mirror_status())
     if sync:
         maybe_sync(now, force=force)
     path = find_collection(appdata)
     if not path:
         return {"available": False, "reason": "Anki 데스크톱의 컬렉션을 찾지 못함 (%APPDATA%\\Anki2)", "data": None,
-                "connect": connect_status()}
+                "connect": connect_status(), "mirror": None}
+    return _read_cached(path, now, force, None)
+
+
+def _read_cached(path, now, force, mirror):
     try:
         mtime = os.path.getmtime(path)
     except OSError:
@@ -249,11 +322,11 @@ def snapshot(now=None, appdata=None, force=False, sync=None):
         c = _cache
         fresh = (c["path"] == path and c["mtime"] == mtime and c["data"] is not None and now - c["at"] < CACHE_SEC)
         if fresh and not force:
-            return {"available": True, "path": path, "mtime": mtime, "data": c["data"], "cached": True, "connect": connect_status()}
+            return {"available": True, "path": path, "mtime": mtime, "data": c["data"], "cached": True, "connect": connect_status(), "mirror": mirror}
         try:
             data = read_collection(path, now)
         except Exception as e:
             return {"available": True, "path": path, "mtime": mtime, "data": c["data"], "error": "%s: %s" % (type(e).__name__, e),
-                    "connect": connect_status()}
+                    "connect": connect_status(), "mirror": mirror}
         c.update({"path": path, "mtime": mtime, "at": now, "data": data})
-        return {"available": True, "path": path, "mtime": mtime, "data": data, "cached": False, "connect": connect_status()}
+        return {"available": True, "path": path, "mtime": mtime, "data": data, "cached": False, "connect": connect_status(), "mirror": mirror}

@@ -1473,7 +1473,7 @@
   }
   // ------------------------------------------------------------ 두 칸 타일 (§42): 폰에서 칸을 접어 한눈에 — 제목 + 큰 값 하나 + 한 줄. 누르면 그 자리에서 펼쳐진다.
   // 미리 보기는 이미 그려진 칸의 화면(DOM)에서 읽는다 — 칸마다의 데이터 모양을 여기서 다시 알 필요가 없고, 칸이 다시 그려지면 따라 바뀐다.
-  var TILE_IDS = ['card-keeps', 'card-events', 'card-notes', 'card-night', 'card-drawer', 'card-notices', 'card-unknown', 'card-pause', 'card-reading', 'card-devices'];
+  var TILE_IDS = ['card-keeps', 'card-events', 'card-anki', 'card-notes', 'card-night', 'card-drawer', 'card-notices', 'card-unknown', 'card-pause', 'card-reading', 'card-devices'];
   function tx(el) { return el ? el.textContent.replace(/\s+/g, ' ').trim() : ''; }
   var TILE_PV = {
     'card-events': function (c) {
@@ -1501,6 +1501,12 @@
     },
     'card-pause': function () { return ['', tx($('pause-hint'))]; },
     'card-reading': function () { return ['', tx($('reading-body'))]; },
+    'card-anki': function () {                                    // §59 오늘 몇 장 + 남은 것 · 맨 앞 덱의 진행
+      var r = state.anki, d = r && r.data;
+      if (!d) return ['', r && r.mirror && r.mirror.busy ? 'AnkiWeb 에서 받는 중…' : 'Anki 기록 없음'];
+      var p = (d.progress || [])[0], due = d.due.review + d.due.learn;
+      return [d.today.reviews + '장', '오늘 · 남은 것 ' + due + (p ? ' · ' + ankiProg(p) : '')];
+    },
     'card-devices': function (c) { return ['', tx(c.querySelector('.dev-line .grow'))]; }
   };
   function renderTiles() {
@@ -1792,6 +1798,8 @@
   // ------------------------------------------------------------ Anki 복습 모니터 (§31)
   var ANKI_REFRESH_MS = 10 * 60000;
   function ankiOn() { return !!(state.config && state.config.anki_card); }
+  // §59 덱 진행 한 마디: Day 3/30 · 120/1,701 (Day 태그가 없으면 장수만)
+  function ankiProg(p) { return (p.days ? 'Day ' + (p.day || 0) + '/' + p.days + ' · ' : '') + p.learned.toLocaleString() + '/' + p.total.toLocaleString(); }
   function loadAnki(force) {
     $('card-anki').hidden = !ankiOn();          // §31.6: 설정으로 켜고 끈다. 꺼져 있으면 조회도, 동기화 트리거도 안 한다
     if (!ankiOn()) return Promise.resolve();
@@ -1799,6 +1807,7 @@
       state.anki = r; renderAnki();
       // AnkiConnect 로 sync 를 눌러 둔 상태면 끝날 때까지 20초마다 다시 본다 (끝나면 서버 캐시가 비워져 새 숫자가 온다)
       if (r && r.connect && r.connect.busy) setTimeout(function () { loadAnki(false); }, 20000);
+      if (r && r.mirror && r.mirror.busy) setTimeout(function () { loadAnki(false); }, 4000);       // §59 받는 동안은 곧 다시 본다
     }).catch(fail('Anki 읽기 실패'));
   }
   function renderAnki() {
@@ -1807,6 +1816,12 @@
     clear(box);
     var cn = r.connect || {};
     function when(dt) { return (dt.getMonth() + 1) + '/' + dt.getDate() + ' ' + pad2(dt.getHours()) + ':' + pad2(dt.getMinutes()); }
+    var mr = r.mirror;
+    if ((!r.available || !r.data) && mr && mr.on) {               // §59 사본을 처음 받는 중 · 받지 못함
+      sub.textContent = '';
+      box.appendChild(h('div', { class: 'anki-none', text: mr.busy || !mr.error ? 'AnkiWeb 에서 처음 받는 중입니다…' : '받아 오지 못했습니다 — ' + mr.error }));
+      return;
+    }
     if (!r.available || !r.data) {
       sub.textContent = '';
       box.appendChild(h('div', { class: 'anki-none' }, [
@@ -1839,12 +1854,28 @@
     if (d.decks && d.decks.length) {
       box.appendChild(h('div', { class: 'anki-row' }, d.decks.map(function (k) { return h('span', {}, [document.createTextNode(k.name + ' '), h('b', { text: String(k.n) })]); })));
     }
+    if (d.progress && d.progress.length) {                        // §59 덱 진행: 이름 · Day · 본 것/전체 · 오늘 새로 본 것 + 가는 줄
+      box.appendChild(h('div', { class: 'anki-prog' }, d.progress.map(function (p) {
+        return h('div', { class: 'ap-row', title: p.name + ' — 본 것 ' + p.learned + ' / 전체 ' + p.total }, [
+          h('span', { class: 'ap-n', text: p.name }),
+          h('span', { class: 'ap-v', text: ankiProg(p) + (p.new_today ? ' · 오늘 새 ' + p.new_today : '') }),
+          h('span', { class: 'ap-bar' }, [h('i', { style: 'width:' + (p.total ? Math.round(p.learned / p.total * 1000) / 10 : 0) + '%' })])
+        ]);
+      })));
+    }
     if (d.last_review) {
       var l = new Date(d.last_review * 1000), ago = Math.round((Date.now() - l.getTime()) / 3600000);
       box.appendChild(h('div', { class: 'hint', text: '마지막 복습 ' + when(l) + (ago >= 24 ? ' · ' + Math.floor(ago / 24) + '일 전' : '') }));
     }
     // 동기화 상태 — Anki 데스크톱은 켜 둔 채로는 스스로 동기화하지 않는다(열고 닫을 때만). AnkiConnect 가 있으면 호라리움이 눌러 준다
     var staleH = ls ? (Date.now() - ls.getTime()) / 3600000 : null;
+    if (mr && mr.on) {                                             // §59 Orbit 이 직접 받아 온다 — Anki 창 · 추가 기능이 필요 없다
+      box.appendChild(h('div', { class: 'hint', text: mr.busy ? 'AnkiWeb 에서 받는 중…'
+        : 'AnkiWeb 에서 30분마다 직접 받아 옵니다' + (mr.last_ok ? ' · 마지막 ' + when(new Date(mr.last_ok * 1000)) : '') + (mr.error ? ' · 오류: ' + mr.error : '') }));
+      if (d.last_review && Date.now() - d.last_review * 1000 > 36 * 3600000)
+        box.appendChild(h('div', { class: 'hint anki-stale', text: '폰에서 외웠는데 안 보이면 폰 Anki 에서 동기화를 눌러 주세요 — AnkiWeb 에 올라온 것만 보입니다.' }));
+      return;
+    }
     if (cn.busy) box.appendChild(h('div', { class: 'hint', text: 'AnkiWeb 과 동기화 중…' }));
     else if (cn.present) box.appendChild(h('div', { class: 'hint', text: '자동 동기화 켜짐 (AnkiConnect, 30분마다)' + (cn.error ? ' · 오류: ' + cn.error : '') }));
     else if (staleH === null || staleH >= 3) box.appendChild(h('div', { class: 'hint anki-stale', text: '폰 기록이 안 보이면: 폰 Anki 에서 동기화 → 이 PC 의 Anki 창에서 Y (켜 둔 Anki 는 스스로 동기화하지 않음)' }));
@@ -3469,7 +3500,9 @@
         data: { today: { reviews: 32, minutes: 7.4, correct: 28, accuracy: 88 },
         due: { review: 14, learn: 3, new_waiting: 120 }, days: ad, streak: 6, retention30: 91,
         decks: [{ name: '노랭이', n: 20 }, { name: '초록이', n: 12 }], last_review: Date.now() / 1000 - 5400,
-        last_sync: Date.now() / 1000 - (pq.get('stale') === '1' ? 19 * 3600 : 1800), cards: { total: 3000, mature: 410 } } };
+        last_sync: Date.now() / 1000 - (pq.get('stale') === '1' ? 19 * 3600 : 1800), cards: { total: 3000, mature: 410 },
+        progress: [{ name: '해커스 보카 초록이', total: 2601, learned: 240, new_today: 20, today: 12, day: 4, days: 30 }, { name: '노랭이', total: 1227, learned: 224, new_today: 0, today: 20, day: null, days: null }] },
+        mirror: pq.get('connect') === '1' ? null : { on: true, busy: false, last_ok: Date.now() / 1000 - 600, error: null } };   // §59 목업은 사본이 켜진 모습
     }
     else if (p === '/api/events' && body === undefined) {
       var ed = q.date || db.today;

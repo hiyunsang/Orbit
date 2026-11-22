@@ -621,6 +621,24 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertIn("half = Math.min(oz.W, oz.H) / k / 2 * 0.8", cl)
         self.assertIn("lo = Math.max(0, b[0] - half), hi = b[1] + half", cl, "가운데 빈 곳도 원 바깥도 안 된다")
 
+    def test_anki_mirror_design_59(self):
+        """§59 Anki 칸 — Orbit 이 직접 받아 오는 사본의 상태 · 덱 진행 · 한 장의 타일."""
+        self.assertIsNotNone(re.search(r"^##\s*59\.", self.design, re.M), "DESIGN.md 에 §59 가 없다")
+        self.assertIn("'card-events', 'card-anki', 'card-notes'", self.js, "Anki 칸은 일정 다음 타일")
+        self.assertIn("#main.phone-pages.pg-home #card-anki:not([hidden])", self.css, "설정으로 꺼져 있으면 계속 숨는다")
+        self.assertIn("#card-anki { order: 3; }", self.css)
+        ra = self.js[self.js.index("function renderAnki()"):self.js.index("// ------------------------------------------------------------ 내 일정·마감 (§28)")]
+        self.assertIn("'AnkiWeb 에서 30분마다 직접 받아 옵니다'", ra)
+        self.assertIn("폰 Anki 에서 동기화를 눌러 주세요", ra, "AnkiWeb 에 올라온 것만 보인다는 안내")
+        self.assertIn("d.progress.map(function (p)", ra, "덱 진행 줄")
+        self.assertIn("function ankiProg(p) { return (p.days ? 'Day ' + (p.day || 0) + '/' + p.days + ' · ' : '')", self.js)
+        self.assertIn("if (r && r.mirror && r.mirror.busy) setTimeout(function () { loadAnki(false); }, 4000);", self.js, "받는 동안은 곧 다시 본다")
+        self.assertIn(".ap-bar { grid-column: 1 / -1; height: 2px;", self.css)
+        srv = io.open(os.path.join(ROOT, "server.py"), encoding="utf-8").read()
+        self.assertIn('"anki_card": bool(CFG.get("anki_card", False)) or _anki_mirror_on(),', srv)
+        gi = io.open(os.path.join(ROOT, ".gitignore"), encoding="utf-8").read()
+        self.assertTrue(any(l.strip().rstrip("/") == "data" for l in gi.splitlines()), "사본(data\\anki_mirror)은 올리지 않는다")
+
     def test_glance_list_design_58(self):
         """§58 한눈에 — 펼친 묶음은 오늘 · 다가오는 것 둘, 나머지는 접고, 묵은 일은 하나씩 묻는다."""
         self.assertIsNotNone(re.search(r"^##\s*58\.", self.design, re.M), "DESIGN.md 에 §58 이 없다")
