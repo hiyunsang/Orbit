@@ -1187,14 +1187,19 @@
     if (tag) li.appendChild(h('span', { class: 'ph-tag ' + (meta[1] || ''), text: tag, onclick: toggle }));
     return li;
   }
+  function dayTag(day) {                                         // §58 오른쪽 한 마디: 내일 · 수 · D-3 · 12/1 · D-9
+    var n = dueDays(day);
+    return n === 1 ? '내일' : (n <= 7 ? WEEK[parseDate(day).getDay()] : mdStr(day)) + ' · D-' + n;
+  }
+  function todoAge(x) { return Math.max(0, Math.round((parseDate(sideDate()) - parseDate(x.day)) / 86400000)); }   // 적은 지 며칠
   function phMetaEvt(x) {
-    if (x.status === 'parsing') return [x.note || '날짜를 찾는 중…', ''];
-    if (!x.occ) return [x.status === 'failed' ? '처리 실패 — 날짜를 적어 주세요' : '날짜를 적어 주세요', 'soon'];
+    if (x.status === 'parsing') return [x.note || '날짜를 찾는 중…', '', '찾는 중'];
+    if (!x.occ) return [x.status === 'failed' ? '처리 실패 — 날짜를 적어 주세요' : '날짜를 적어 주세요', 'soon', '날짜 확인'];
     var w = (x.area ? x.area + ' · ' : '') + evtWhen(x);           // §51 분야가 있으면 앞에
     if (x.done || x.d === null || x.d === undefined) return [w, ''];
     if (x.d < 0) return [w, 'late', (-x.d) + '일 지남'];
     if (x.d === 0) return [w, 'late', '오늘'];
-    return [w, x.d <= 3 ? 'soon' : '', 'D-' + x.d];      // 주황은 사흘 안일 때만 — 다 주황이면 급한 게 안 보인다
+    return [w, x.d <= 3 ? 'soon' : '', dayTag(x.occ)];   // 주황은 사흘 안일 때만 — 다 주황이면 급한 게 안 보인다
   }
   function phEvt(x) {
     var weekly = x.repeat === 'weekly' && !x.done;
@@ -1221,15 +1226,24 @@
   function phTodo(it, carried, ahead) {
     // §51 '하는 중' 은 묶음 이름이 말해 준다 — 줄에는 분야와 적은 날. §52.2 기한이 있으면 적은 날 대신 기한, 오른쪽 열은 일정과 같은 규칙
     var due = !it.done && it.due ? dueDays(it.due) : null;
-    var mt = [it.area, due !== null ? mdStr(it.due) + '(' + WEEK[parseDate(it.due).getDay()] + ')까지' : (carried ? mdStr(it.day) + ' 에 적음' : '')].filter(Boolean).join(' · ');
-    var meta = it.done ? null : due === null ? [mt, it.doing ? 'doing' : '']
-      : [mt, due <= 0 ? 'late' : due <= 3 ? 'soon' : '', due < 0 ? (-due) + '일 지남' : due === 0 ? '오늘' : 'D-' + due, !!it.doing];
+    var mt = [it.area, due !== null ? mdStr(it.due) + '(' + WEEK[parseDate(it.due).getDay()] + ')까지'
+      : (carried ? mdStr(it.day) + ' 에 적음' : ahead ? whenLabel(it.day) + ' 할 일' : '')].filter(Boolean).join(' · ');
+    // §58 오른쪽 한 마디: 기한 > 하는 중 > 내일 · 고른 날 > 나중에 > 며칠 전(묵은 것). 둘째 줄(mt)은 눌러 펼쳤을 때만 보인다
+    var old = carried && !it.done ? todoAge(it) : 0;
+    var meta = it.done ? null
+      : due !== null ? [mt, due <= 0 ? 'late' : due <= 3 ? 'soon' : '', due < 0 ? (-due) + '일 지남' : due === 0 ? '오늘' : dayTag(it.due), !!it.doing]
+      : it.doing ? [mt, 'doing', '하는 중']
+      : ahead ? [mt, '', dayTag(it.day)]
+      : it.someday ? [mt, '', '나중에']
+      : old >= STALE_DAYS ? [mt, '', old + '일 전'] : [mt, ''];
     return phRow('t' + it.id, it.text, meta, !!it.done, function () {
       var body = { id: it.id, done: it.done ? 0 : 1 };
       if ((carried || ahead) && !it.done) body.day = sideDate();   // §20: 전에(§57.5 앞날로) 적은 할 일을 끝내면 '그 날 한 일' 로
       api('/api/todos/update', body).then(loadTodos).catch(fail('할 일 갱신 실패'));
     }, function (box) {
       var pills = [];
+      if (!it.done && (ahead || (carried && (it.someday || old >= 1)))) pills.push(h('button', { class: 'ph-pill', type: 'button', text: '오늘 하기', onclick: function () {   // §58 쌓아 둔 것 · 내일 것을 오늘로
+        api('/api/todos/update', { id: it.id, day: sideDate(), someday: 0 }).then(loadTodos).catch(fail('할 일 갱신 실패')); } }));
       if (!it.done) pills.push(h('button', { class: 'ph-pill' + (it.doing ? ' on' : ''), type: 'button', text: it.doing ? '하는 중 — 대기로' : '하는 중으로', onclick: function () {
         api('/api/todos/update', { id: it.id, doing: it.doing ? 0 : 1 }).then(loadTodos).catch(fail('할 일 갱신 실패')); } }));
       if (!it.done && !it.doing) pills.push(h('button', { class: 'ph-pill', type: 'button', text: it.someday ? '지금 할 일로' : '나중에로', onclick: function () {
@@ -1249,49 +1263,111 @@
     var oneOff = function (x) { return x.kind === 'event' && !x.repeat && !x.done && x.occ && x.d >= 0 && x.d <= 7; };
     return ((state.events && state.events.items) || []).filter(function (x) { return x.kind !== 'event' || oneOff(x); });
   }
+  // §58 한눈에 — '오늘' 과 '다가오는 것' 만 펼치고 나머지는 '쌓아 둔 것' 으로 접는다. 한 줄 = 제목 + 오른쪽 한 마디(둘째 줄은 눌러 펼쳤을 때만).
+  // 묵은 일(적은 지 STALE_DAYS 일 넘은 날짜 없는 할 일)은 접어만 두지 않고 맨 위에서 하나씩 묻는다 — 끝냈는지 · 오늘 할지 · 나중에 · 지울지
+  var STALE_DAYS = 3, STALE_KEY = 'orbit.stale', TOEFL_RE = /^토플 (WRT|SPK|RC|LC) 숙제/;
+  function staleSnoozed() { try { return JSON.parse(localStorage.getItem(STALE_KEY) || '{}') || {}; } catch (e) { return state.staleSnooze || {}; } }
+  function staleSnooze(id) {                                    // '내일 다시 묻기' — 오늘 하루만 미룬다
+    var m = staleSnoozed(), t = todayStr(), out = {};
+    Object.keys(m).forEach(function (k) { if (m[k] === t) out[k] = t; });
+    out[id] = t;
+    try { localStorage.setItem(STALE_KEY, JSON.stringify(out)); } catch (e) { state.staleSnooze = out; }
+    renderTasks();
+  }
+  function phStale(x) {
+    var upd = function (body) { body.id = x.id; api('/api/todos/update', body).then(loadTodos).catch(fail('할 일 갱신 실패')); };
+    var li = h('li', { class: 'ph-row stale' });
+    li.appendChild(h('span', { class: 'ph-ib q', 'aria-hidden': 'true', text: '?' }));
+    li.appendChild(h('div', { class: 'ph-b' }, [
+      h('div', { class: 'ph-t', text: x.text }),
+      h('div', { class: 'ib-reply', text: todoAge(x) + '일 됐어요. 끝냈나요, 어떻게 할까요?' }),
+      h('div', { class: 'ph-pills' }, [
+        h('button', { class: 'ph-pill', type: 'button', text: '끝냈어요', onclick: function () { upd({ done: 1, day: sideDate() }); } }),
+        h('button', { class: 'ph-pill', type: 'button', text: '오늘 할게요', onclick: function () { upd({ day: sideDate(), someday: 0 }); } }),
+        h('button', { class: 'ph-pill', type: 'button', text: '나중에', title: '쌓아 둔 것에 두고 더 묻지 않습니다', onclick: function () { upd({ someday: 1 }); } }),
+        h('button', { class: 'ph-pill del', type: 'button', text: '지우기', onclick: function () { api('/api/todos/delete', { id: x.id }).then(loadTodos).catch(fail('삭제 실패')); } }),
+        h('button', { class: 'ph-pill quiet', type: 'button', text: '내일 다시 묻기', onclick: function () { staleSnooze(x.id); } })
+      ])
+    ]));
+    return li;
+  }
+  // 토플 숙제 줄(과목마다 하나 — Tortle 이 넣는다)이 둘 이상이면 한 줄로. 누르면 과목별 줄이 그 아래에. [{k: 차례, li}] 를 돌려준다
+  function foldToefl(list, id, keyOf) {
+    var tf = list.filter(function (x) { return TOEFL_RE.test(x.title || ''); });
+    var out = list.filter(function (x) { return tf.length < 2 || tf.indexOf(x) < 0; }).map(function (x) { return { k: keyOf(x.occ), li: phEvt(x) }; });
+    if (tf.length < 2) return out;
+    var first = tf.slice().sort(function (a, b) { return a.occ < b.occ ? -1 : a.occ > b.occ ? 1 : 0; })[0], dn = 0, tot = 0;
+    tf.forEach(function (x) { var m = /(\d+)\/(\d+)/.exec(x.title); if (m) { dn += +m[1]; tot += +m[2]; } });
+    var opened = state.tfOpen === id, meta = phMetaEvt(first);
+    var li = h('li', { class: 'ph-row fold' + (opened ? ' up' : ''), title: '누르면 과목별로', onclick: function () { state.tfOpen = opened ? null : id; renderTasks(); } }, [
+      h('span', { class: 'ph-ck many', 'aria-hidden': 'true' }),
+      h('div', { class: 'ph-b' }, [h('div', { class: 'ph-t', text: '토플 숙제 ' + tf.length + '과목' + (tot ? ' · ' + dn + '/' + tot : '') })]),
+      h('span', { class: 'ph-tag ' + (meta[1] || ''), text: meta[2] || '' })
+    ]);
+    out.push({ k: first.occ + '|~', li: li });
+    if (opened) tf.forEach(function (x, i) { var sub = phEvt(x); sub.classList.add('sub'); out.push({ k: first.occ + '|~' + i, li: sub }); });
+    return out;
+  }
   function renderTasksPhone() {
     var box = $('ph-todo-list');
     if (!box) return;
     clear(box);
+    syncWhen();                                                     // 날이 바뀌었으면 '오늘' 로
     var t = state.todos || { today: [], carried: [] };
     var plans = listPlans();
     var open = plans.filter(function (x) { return !x.done; });
-    var late = open.filter(function (x) { return x.occ && x.d <= 0; }), ask = open.filter(function (x) { return !x.occ; });
-    var week = open.filter(function (x) { return x.occ && x.d > 0 && x.d <= 7; }), later = open.filter(function (x) { return x.occ && x.d > 7; });
-    var und = (t.today || []).filter(function (x) { return !x.done; }).map(function (x) { return [x, false]; })
+    var mine = (t.today || []).filter(function (x) { return !x.done; }).map(function (x) { return [x, false]; })
       .concat((t.carried || []).map(function (x) { return [x, true]; }));
-    var ahead = (t.ahead || []).filter(function (x) { return !x.done; });                     // §57.5 '내일' 로 적은 것
-    var tmr = shiftDate(todayStr(), 1), aheadBy = {};
-    ahead.forEach(function (x) { (aheadBy[x.day] = aheadBy[x.day] || []).push(x); });
-    syncWhen();                                                     // 날이 바뀌었으면 '오늘' 로
-    var undRow = function (a) { return phTodo(a[0], a[1]); };
-    // §51 내가 적은 할 일(날짜 없음)이 맨 위: 하는 중 → 할 일. '나중에' 표시한 것은 맨 아래로
-    var byDue = function (a, b) { var x = a[0].due || '9999', y = b[0].due || '9999'; return x < y ? -1 : x > y ? 1 : 0; };   // §52.2 기한 가까운 것이 먼저
-    var doingT = und.filter(function (a) { return a[0].doing; }).sort(byDue), waitT = und.filter(function (a) { return !a[0].doing && !a[0].someday; }).sort(byDue);
-    var someT = und.filter(function (a) { return !a[0].doing && a[0].someday; });
+    var ahead = (t.ahead || []).filter(function (x) { return !x.done; });                     // §57.5 내일 · 고른 날로 적은 것
+    var dueIn = function (x) { return x.due ? dueDays(x.due) : null; };
+    // 내 할 일을 셋으로: 오늘(하는 중 · 기한이 지났거나 오늘 · 적은 지 사흘 안) / 다가오는 것(묵었지만 기한이 이레 안) / 쌓아 둔 것
+    var nowT = [], soonT = [], backT = [];
+    mine.forEach(function (a) {
+      var x = a[0], d = dueIn(x);
+      if (x.doing || (d !== null && d <= 0) || (!x.someday && (!a[1] || todoAge(x) < STALE_DAYS))) nowT.push(a);
+      else if (!x.someday && d !== null && d <= 7) soonT.push(a);
+      else backT.push(a);
+    });
+    var lateP = open.filter(function (x) { return x.occ && x.d <= 0; }), askP = open.filter(function (x) { return !x.occ; });
+    var weekP = open.filter(function (x) { return x.occ && x.d > 0 && x.d <= 7; }), farP = open.filter(function (x) { return x.occ && x.d > 7; });
     var ib = (state.inbox && state.inbox.items) || [];
     var doneT = (t.today || []).filter(function (x) { return x.done; }), doneP = plans.filter(function (x) { return x.done; });
+    var undRow = function (a) { return phTodo(a[0], a[1]); };
+    var byDue = function (a, b) { var x = a[0].due || '9999', y = b[0].due || '9999'; return x < y ? -1 : x > y ? 1 : 0; };   // §52.2 기한 가까운 것이 먼저
+    var seq = 0, keyOf = function (day) { return (day || '0000') + '|' + ('000' + (seq++)).slice(-4); };
+    var byK = function (a, b) { return a.k < b.k ? -1 : a.k > b.k ? 1 : 0; }, liOf = function (e) { return e.li; };
     var grp = function (title, rows) {
       if (!rows.length) return;
       box.appendChild(h('div', { class: 'ph-gh', text: title }));
       box.appendChild(h('ul', { class: 'ph-grp' }, rows));
     };
-    grp('방금 적은 것', ib.map(phInbox));
-    grp('하는 중', doingT.map(undRow));
-    grp('할 일', waitT.map(undRow));
-    Object.keys(aheadBy).sort().forEach(function (d) { grp(d === tmr ? '내일' : whenLabel(d), aheadBy[d].map(function (x) { return phTodo(x, false, true); })); });   // §57.5 내일 · 고른 날
-    grp('지남 · 오늘', late.map(phEvt));
-    grp('날짜 확인', ask.map(phEvt));
-    grp('이번 주', week.map(phEvt));
-    grp('나중에', later.map(phEvt).concat(someT.map(undRow)));
-    var total = open.length + und.length + ahead.length, nDone = doneT.length + doneP.length;
-    if (!total && !ib.length) box.appendChild(h('div', { class: 'ph-empty', text: '떠오르는 대로 위에 적어 두세요 — 할 일 · 마감 · 일정 · 기억할 것으로 알아서 나눕니다.' }));
-    if (nDone) {
-      var rows = [h('li', { class: 'ph-row chev' + (state.tasksDoneOpen ? ' up' : ''), text: '끝낸 것 ' + nDone, onclick: function () { state.tasksDoneOpen = !state.tasksDoneOpen; renderTasks(); } })];
-      if (state.tasksDoneOpen) rows = rows.concat(doneT.map(function (x) { return phTodo(x, false); }), doneP.map(phEvt));
+    var foldGrp = function (label, rows, flag) {                   // 접힌 묶음: 개수만 — 누르면 펼친다
+      if (!rows.length) return;
+      var head = h('li', { class: 'ph-row chev' + (state[flag] ? ' up' : ''), text: label + ' ' + rows.length, onclick: function () { state[flag] = !state[flag]; renderTasks(); } });
       box.appendChild(h('div', { class: 'ph-gh' }));
-      box.appendChild(h('ul', { class: 'ph-grp' }, rows));
-    }
+      box.appendChild(h('ul', { class: 'ph-grp' }, state[flag] ? [head].concat(rows) : [head]));
+    };
+    grp('방금 적은 것', ib.map(phInbox));
+    // 묵은 일은 하나씩 묻는다(가장 오래된 것부터). '나중에' 로 둔 것 · 오늘 미룬 것은 묻지 않는다
+    var snoozed = staleSnoozed(), today = todayStr();
+    var ask = backT.filter(function (a) { return !a[0].someday && snoozed[a[0].id] !== today; })
+      .sort(function (a, b) { return a[0].day < b[0].day ? -1 : a[0].day > b[0].day ? 1 : 0; });
+    if (ask.length) grp('확인할 것' + (ask.length > 1 ? ' · ' + ask.length : ''), [phStale(ask[0][0])]);
+    // 오늘: 하는 중 → 지난 것 · 오늘까지인 것 → 오늘 · 요 며칠 적은 것
+    var urgent = nowT.filter(function (a) { var d = dueIn(a[0]); return !a[0].doing && d !== null && d <= 0; });
+    grp('오늘', nowT.filter(function (a) { return a[0].doing; }).sort(byDue).map(undRow)
+      .concat(foldToefl(lateP, 'now', keyOf).sort(byK).map(liOf), urgent.sort(byDue).map(undRow),
+              nowT.filter(function (a) { return !a[0].doing && urgent.indexOf(a) < 0; }).sort(byDue).map(undRow)));
+    // 다가오는 것: 내일 ~ 이레 안, 날짜순 한 줄씩(날짜를 못 정한 것은 맨 앞)
+    var soon = askP.map(function (x) { return { k: keyOf(''), li: phEvt(x) }; });
+    ahead.filter(function (x) { return dueDays(x.day) <= 7; }).forEach(function (x) { soon.push({ k: keyOf(x.day), li: phTodo(x, false, true) }); });
+    soonT.forEach(function (a) { soon.push({ k: keyOf(a[0].due), li: undRow(a) }); });
+    grp('다가오는 것', soon.concat(foldToefl(weekP, 'week', keyOf)).sort(byK).map(liOf));
+    // 쌓아 둔 것(접힘): 묵은 할 일 · '나중에' · 이레 넘게 남은 것
+    foldGrp('쌓아 둔 것', backT.map(undRow).concat(ahead.filter(function (x) { return dueDays(x.day) > 7; }).map(function (x) { return phTodo(x, false, true); }), farP.map(phEvt)), 'backOpen');
+    var total = open.length + mine.length + ahead.length, nDone = doneT.length + doneP.length;
+    if (!total && !ib.length) box.appendChild(h('div', { class: 'ph-empty', text: '떠오르는 대로 위에 적어 두세요 — 할 일 · 마감 · 일정 · 기억할 것으로 알아서 나눕니다.' }));
+    foldGrp('끝낸 것', doneT.map(function (x) { return phTodo(x, false); }).concat(doneP.map(phEvt)), 'tasksDoneOpen');
     if ($('ph-todos-n')) $('ph-todos-n').textContent = total + '개' + (nDone ? ' · 끝낸 것 ' + nDone : '');
     renderPhoneHero();                                              // 궤도의 안쪽 고리(할 일 진행률)와 아래 한 줄도 따라 바뀐다
     if (state.view === 'day') renderTimeline();                       // 안쪽 고리(할 일 진행률)

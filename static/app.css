@@ -680,6 +680,17 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
   .ph-tag { flex: none; padding-top: 2px; font-family: var(--mono); font-size: 12px; letter-spacing: 0; word-spacing: -0.3em; color: var(--text-3); white-space: nowrap; cursor: pointer; }   /* 오른쪽 열: D-3 · 오늘 · 2일 지남 */
   .ph-tag.late { color: var(--red); }
   .ph-tag.soon { color: var(--amber); }
+  /* §58 한 줄 = 제목 + 오른쪽 한 마디 — 둘째 줄(분야 · 적은 날 · 날짜)은 눌러 펼쳤을 때만 */
+  .ph-row:not(.open):not(.inbox) > .ph-b > .ph-m { display: none; }
+  .ph-tag.doing { color: var(--text-2); }
+  .ph-row.sub { padding-left: 29px; }                      /* 토플 숙제 한 줄을 펼친 과목별 줄 */
+  .ph-row.fold { cursor: pointer; }
+  .ph-ck.many { cursor: pointer; }
+  .ph-ck.many::before { content: ""; position: absolute; inset: 3.5px; border-radius: 50%; background: var(--text-3); }
+  .ph-row.stale .ph-b { cursor: default; }                 /* 묵은 일 확인: 물음표 + 묻는 말 + 고르는 단추 */
+  .ph-ib.q { display: flex; align-items: center; justify-content: center; border-style: solid; font-size: 11px; line-height: 1; color: var(--text-3); }
+  .ph-row.stale .ph-pills { margin-top: 8px; }
+  .ph-pill.quiet { border-color: transparent; padding-left: 4px; padding-right: 4px; color: var(--text-3); }
   .ph-x { display: none; margin-top: 8px; font-size: 13px; line-height: 1.55; color: var(--text-2); cursor: default; }
   .ph-row.open .ph-x { display: block; }
   .ph-x input[type="date"] { margin-top: 10px; height: 38px; border-radius: 8px; background: none; border: 1px solid var(--line-2); padding: 0 10px; }

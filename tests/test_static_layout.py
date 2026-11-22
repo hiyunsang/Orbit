@@ -621,6 +621,33 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertIn("half = Math.min(oz.W, oz.H) / k / 2 * 0.8", cl)
         self.assertIn("lo = Math.max(0, b[0] - half), hi = b[1] + half", cl, "가운데 빈 곳도 원 바깥도 안 된다")
 
+    def test_glance_list_design_58(self):
+        """§58 한눈에 — 펼친 묶음은 오늘 · 다가오는 것 둘, 나머지는 접고, 묵은 일은 하나씩 묻는다."""
+        self.assertIsNotNone(re.search(r"^##\s*58\.", self.design, re.M), "DESIGN.md 에 §58 이 없다")
+        ph = self.js[self.js.index("function renderTasksPhone()"):self.js.index("// ------------------------------------------------------------ §51 받아 적기")]
+        for gone in ("grp('하는 중'", "grp('할 일'", "grp('지남 · 오늘'", "grp('이번 주'", "grp('나중에'"):
+            self.assertNotIn(gone, ph, "§58 옛 묶음 " + gone)
+        self.assertIn("var STALE_DAYS = 3,", self.js)
+        self.assertIn("if (x.doing || (d !== null && d <= 0) || (!x.someday && (!a[1] || todoAge(x) < STALE_DAYS))) nowT.push(a);", ph, "오늘 = 하는 중 · 기한 지남/오늘 · 사흘 안")
+        self.assertIn("foldGrp('쌓아 둔 것', backT.map(undRow)", ph, "쌓아 둔 것은 접힌 채 개수만")
+        self.assertIn("state[flag] ? [head].concat(rows) : [head]", ph)
+        # 묵은 일은 하나씩 묻는다
+        self.assertIn("if (ask.length) grp('확인할 것' + (ask.length > 1 ? ' · ' + ask.length : ''), [phStale(ask[0][0])]);", ph)
+        self.assertIn("!a[0].someday && snoozed[a[0].id] !== today", ph, "'나중에' · 오늘 미룬 것은 묻지 않는다")
+        st = self.js[self.js.index("function phStale(x)"):self.js.index("function foldToefl(")]
+        for w in ("'끝냈어요'", "upd({ done: 1, day: sideDate() })", "'오늘 할게요'", "upd({ day: sideDate(), someday: 0 })", "'나중에'", "upd({ someday: 1 })",
+                  "'지우기'", "'내일 다시 묻기'", "staleSnooze(x.id)", "'일 됐어요. 끝냈나요, 어떻게 할까요?'"):
+            self.assertIn(w, st)
+        # 한 줄 = 제목 + 오른쪽 한 마디
+        self.assertIn(".ph-row:not(.open):not(.inbox) > .ph-b > .ph-m { display: none; }", self.css, "둘째 줄은 펼쳤을 때만")
+        self.assertIn("return n === 1 ? '내일' : (n <= 7 ? WEEK[parseDate(day).getDay()] : mdStr(day)) + ' · D-' + n;", self.js)
+        self.assertIn(": old >= STALE_DAYS ? [mt, '', old + '일 전'] : [mt, ''];", self.js)
+        self.assertIn("text: '오늘 하기'", self.js, "쌓아 둔 것 · 내일 것을 오늘로")
+        # 토플 숙제 네 줄 → 한 줄
+        self.assertIn("TOEFL_RE = /^토플 (WRT|SPK|RC|LC) 숙제/", self.js)
+        self.assertIn("'토플 숙제 ' + tf.length + '과목'", self.js)
+        self.assertIn("if (tf.length < 2) return out;", self.js, "하나뿐이면 그대로")
+
     def test_answer_in_place_design_57(self):
         """§57 비서가 물으면 그 줄 아래에서 답한다 — 답은 받아 적기로, 물은 줄은 닫는다."""
         self.assertIsNotNone(re.search(r"^##\s*57\.", self.design, re.M), "DESIGN.md 에 §57 이 없다")
@@ -638,7 +665,8 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertNotIn("btn-todo-tmr", self.html, "단추 하나는 셋으로 바뀌었다")
         self.assertIn("day: whenDay() || sideDate()", self.js)
         self.assertIn("return v && v.set === t && v.day > t ? v.day : null;", self.js, "고른 것은 그 날 동안만 · 앞날만")
-        self.assertIn("grp(d === tmr ? '내일' : whenLabel(d)", self.js, "할 일 아래 날마다 묶음")
+        self.assertIn("ahead.filter(function (x) { return dueDays(x.day) <= 7; }).forEach(function (x) { soon.push({ k: keyOf(x.day), li: phTodo(x, false, true) }); });", self.js,
+                      "§58 내일 · 고른 날로 적은 것은 '다가오는 것' 에 날짜순")
         self.assertIn("if ((carried || ahead) && !it.done) body.day = sideDate();", self.js)
         self.assertIn("#card-todos .todo-when button.on {", self.css)
 
@@ -655,9 +683,9 @@ class StaticLayoutTest(unittest.TestCase):
         """§51 받아 적기 · 개인 비서 — 내가 적은 할 일이 맨 위, 적은 글은 claude 가 나누고 결과를 되돌릴 수 있다."""
         self.assertIsNotNone(re.search(r"^##\s*51\.", self.design, re.M), "DESIGN.md 에 §51 이 없다")
         ph = self.js[self.js.index("function renderTasksPhone()"):self.js.index("// ------------------------------------------------------------ §51 받아 적기")]
-        order = ["grp('방금 적은 것'", "grp('하는 중'", "grp('할 일'", "grp('지남 · 오늘'", "grp('날짜 확인'", "grp('이번 주'", "grp('나중에'"]
+        order = ["grp('방금 적은 것'", "grp('확인할 것'", "grp('오늘'", "grp('다가오는 것'", "foldGrp('쌓아 둔 것'", "foldGrp('끝낸 것'"]
         pos = [ph.index(g) for g in order]
-        self.assertEqual(pos, sorted(pos), "할 일 칸 묶음 순서: 방금 적은 것 → 하는 중 → 할 일 → 지남·오늘 → 날짜 확인 → 이번 주 → 나중에")
+        self.assertEqual(pos, sorted(pos), "할 일 칸 묶음 순서(§58): 방금 적은 것 → 확인할 것 → 오늘 → 다가오는 것 → 쌓아 둔 것 → 끝낸 것")
         self.assertNotIn("grp('날짜 없음'", ph)
         add = self.js[self.js.index("function addTask()"):self.js.index("function addTodo()")]
         self.assertIn("api('/api/inbox', { text: text, day: whenDay() || sideDate() })", add, "모든 글은 받아 적기로(§57.5 내일 · 고른 날이면 그 날 것)")
