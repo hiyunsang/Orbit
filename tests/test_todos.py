@@ -6,6 +6,7 @@ server 의 할 일 핸들러를 메모리 DB 로 직접 호출한다.
 실행:
   python -m unittest discover -s tests -t . -v   (작업 디렉터리 = MAENG_worklog)
 """
+import datetime
 import os
 import sys
 import unittest
@@ -37,6 +38,20 @@ class TodoApiTest(unittest.TestCase):
 
     def progress_rows(self):
         return self.conn.execute("SELECT COUNT(*) FROM todo_progress").fetchone()[0]
+
+    def test_ahead_tomorrow_57(self):
+        """§57.5 '내일' 로 적은 할 일은 오늘 화면의 ahead 에(오늘 화면에서만), 다음 날엔 그 날 목록."""
+        today = server.common.today_str(server.CFG)
+        tmr = (datetime.datetime.strptime(today, "%Y-%m-%d") + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+        self.add("오늘 것", today)
+        tid = self.add("내일 것", tmr)
+        r = self.get(today)
+        self.assertEqual([x["text"] for x in r["today"]], ["오늘 것"])
+        self.assertEqual([x["text"] for x in r["ahead"]], ["내일 것"])
+        self.assertEqual(self.get(tmr)["ahead"], [], "오늘이 아닌 날을 볼 때는 앞날 목록을 주지 않는다")
+        self.assertEqual([x["text"] for x in self.get(tmr)["today"]], ["내일 것"], "다음 날엔 그 날의 할 일")
+        self.update(id=tid, done=1)
+        self.assertEqual(self.get(today)["ahead"], [], "끝낸 것은 빠진다")
 
     # ---- 진행 상태
     def test_new_todo_is_not_doing(self):

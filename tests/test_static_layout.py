@@ -621,6 +621,25 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertIn("half = Math.min(oz.W, oz.H) / k / 2 * 0.8", cl)
         self.assertIn("lo = Math.max(0, b[0] - half), hi = b[1] + half", cl, "가운데 빈 곳도 원 바깥도 안 된다")
 
+    def test_answer_in_place_design_57(self):
+        """§57 비서가 물으면 그 줄 아래에서 답한다 — 답은 받아 적기로, 물은 줄은 닫는다."""
+        self.assertIsNotNone(re.search(r"^##\s*57\.", self.design, re.M), "DESIGN.md 에 §57 이 없다")
+        ph = self.js[self.js.index("function phInbox(x)"):self.js.index("function growTodoInput()")]
+        self.assertIn("if (x.reply && /[?？]\\s*$/.test(x.reply.trim())) b.appendChild(inboxAnswer(x));", ph)
+        ia = self.js[self.js.index("function inboxAnswer(x)"):self.js.index("function growTodoInput()")]
+        self.assertIn("api('/api/inbox', { text: v, day: sideDate() })", ia, "답은 받아 적기로 — 비서가 물은 말과 함께 읽는다")
+        self.assertIn("api('/api/inbox/dismiss', { id: x.id })", ia, "물은 줄은 닫는다")
+        self.assertIn("state.ibAns[x.id]", ia, "다시 그려져도 적던 답은 남는다")
+        self.assertIn("!e.isComposing", ia, "한글 조합 중 Enter 는 보내지 않는다")
+        self.assertIn(".ib-ans-row { display: flex;", self.css)
+        # 57.5 '내일' 을 바로 고른다
+        self.assertIn('id="btn-todo-tmr" type="button" aria-pressed="false"', self.html)
+        self.assertIn("day: tmrOn() ? shiftDate(todayStr(), 1) : sideDate()", self.js)
+        self.assertIn("localStorage.getItem(TMR_KEY) === todayStr()", self.js, "켠 상태는 그 날 동안만")
+        self.assertIn("grp(aheadName, ahead.map(function (x) { return phTodo(x, false, true); }));", self.js, "할 일 아래 내일 묶음")
+        self.assertIn("if ((carried || ahead) && !it.done) body.day = sideDate();", self.js)
+        self.assertIn("#card-todos .tmr.on {", self.css)
+
     def test_one_off_events_in_list_56(self):
         """§56 한 번뿐인 일정(예비군 같은 것)은 이레 안이면 할 일 목록에도 — 매주 일정은 일정 칸에만."""
         self.assertIsNotNone(re.search(r"^##\s*56\.", self.design, re.M), "DESIGN.md 에 §56 이 없다")
@@ -639,7 +658,7 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertEqual(pos, sorted(pos), "할 일 칸 묶음 순서: 방금 적은 것 → 하는 중 → 할 일 → 지남·오늘 → 날짜 확인 → 이번 주 → 나중에")
         self.assertNotIn("grp('날짜 없음'", ph)
         add = self.js[self.js.index("function addTask()"):self.js.index("function addTodo()")]
-        self.assertIn("api('/api/inbox', { text: text, day: sideDate() })", add, "모든 글은 받아 적기로")
+        self.assertIn("api('/api/inbox', { text: text, day: tmrOn() ? shiftDate(todayStr(), 1) : sideDate() })", add, "모든 글은 받아 적기로(§57.5 '내일' 단추면 내일 것)")
         self.assertNotIn("/api/todos'", add)
         self.assertIn("if (e.isComposing || e.keyCode === 229) return;", self.js, "한글 조합 중 Enter 로 넣지 않는다")
         self.assertIn("if (e.key !== 'Enter' || e.shiftKey) return;", self.js, "Shift+Enter 는 줄바꿈")

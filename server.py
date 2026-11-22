@@ -726,7 +726,13 @@ def api_todos_get(conn, query, body):
         "LEFT JOIN todo_progress p ON p.todo_id=t.id "
         "WHERE t.day<? AND t.done=0 ORDER BY doing DESC, t.day, t.sort_order, t.id", (date,)
     ).fetchall()]
-    return {"today": today, "carried": carried}
+    # §57.5 '내일' 을 골라 적은 할 일 — 오늘 화면에서만, 아직 안 끝낸 앞날 것
+    ahead = [] if date != common.today_str(CFG) else [_todo_row(r, meta, dues) for r in conn.execute(
+        "SELECT t.*, (p.todo_id IS NOT NULL) AS doing FROM todos t "
+        "LEFT JOIN todo_progress p ON p.todo_id=t.id "
+        "WHERE t.day>? AND t.done=0 ORDER BY t.day, doing DESC, t.sort_order, t.id", (date,)
+    ).fetchall()]
+    return {"today": today, "carried": carried, "ahead": ahead}
 
 
 def api_todos_add(conn, query, body):

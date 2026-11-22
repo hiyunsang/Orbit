@@ -65,6 +65,18 @@ class PureTest(unittest.TestCase):
         # §52: 고치기 · 묶어 말하기 · 기한의 범위 · 비서의 말 · 최근 대화
         for w in ("update", "묶어 말하기", "낼 끝을 내자", "\"reply\"", "질문 하나", "[최근에 적은 글과 네가 한 말]", "(없음)\n\n[출력]"):
             self.assertIn(w, p)
+        # §57 할 일은 묻지 않는다 — 날짜 없는 할 일이 곧 목록, 지금 시각을 준다
+        p57 = inbox.prompt("레니쇼 발주 메일 및 결제 연락", TODAY, [], clock="22:26")
+        self.assertIn("2026-11-15(일요일), 지금 22:26 이다", p57)
+        for w in ("날짜 없는 할 일이 곧 이 사람의 할 일 목록", "task 의 기한 · 날짜 · 순서는 절대 묻지 않는다", "묻지 않는다 — 화면의 '날짜 확인' 칸",
+                  "하는 법을 가르치는 말", "묻는 것은 마지막 수단"):
+            self.assertIn(w, p57)
+        self.assertNotIn("꼭 필요한 정보(날짜 · 숫자 · 누구)가 빠졌으면", p57, "§52.3 의 넓은 질문 규칙은 없앴다")
+        self.assertNotIn("단추를 누르고 적었다", p57)
+        pt = inbox.prompt("레니쇼 발주 메일", TODAY, [], clock="22:26", target="2026-11-16")
+        self.assertIn("[이 글은 사용자가 '내일' 단추를 누르고 적었다 — 2026-11-16(월요일) 할 것]", pt)
+        self.assertIn("날짜 표현이 없는 task 는 day 를 null 로 둔다", pt)
+        self.assertNotIn("단추를 누르고", inbox.prompt("x", TODAY, [], target=TODAY), "오늘이면 알리지 않는다")
         p = inbox.prompt("발표 12/3", TODAY, [], [("학회 KTX 숙소", "학회 발표가 며칠이에요?")])
         self.assertIn("- 적은 글: 학회 KTX 숙소\n  네가 한 말: 학회 발표가 며칠이에요?", p)
 

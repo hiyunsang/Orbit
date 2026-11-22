@@ -148,14 +148,19 @@ def history(conn, iid, now=None, limit=HIST_N):
     return [(r["text"], parse_result(r["result"])[1]) for r in reversed(rows)]
 
 
-def prompt(text, today, ctx, hist=None):
+def prompt(text, today, ctx, hist=None, clock=None, target=None):
     wd = plans._wd(today)
+    # §57.5 '내일' 단추로 적은 글 — 날짜 없는 할 일은 그대로 그 날 목록으로 가고, 날짜 없는 일정 · 마감만 그 날로
+    aim = ("[이 글은 사용자가 '%s' 단추를 누르고 적었다 — %s(%s요일) 할 것] 날짜 표현이 없는 task 는 day 를 null 로 둔다(그대로 그 날 "
+           "할 일 목록에 들어간다). 날짜 표현이 없는 event · deadline 은 day = %s.\n\n"
+           % ("내일" if target == (datetime.datetime.strptime(today, "%Y-%m-%d") + datetime.timedelta(days=1)).strftime("%Y-%m-%d") else target, target, plans._wd(target), target)) if target and target > today else ""
+    clock = clock or time.strftime("%H:%M")                     # §57 밤에 적는 할 일은 대개 다음 출근 날 것
     have = "\n".join(ctx) if ctx else "(없음)"
     talk = "\n".join("- 적은 글: %s\n  네가 한 말: %s" % (re.sub(r"\s+", " ", t)[:400], (r or "(없음)")) for t, r in (hist or []))
     return (
-        "오늘은 %s(%s요일) 이다. 너는 한국 대학원생(기계공학 석사, 연구실에서 장비 설계·발주·실험을 하고 수업과 토플 학원도 다님)의 "
+        "오늘은 %s(%s요일), 지금 %s 이다. 너는 한국 대학원생(기계공학 석사, 연구실에서 장비 설계·발주·실험을 하고 수업과 토플 학원도 다님)의 "
         "개인 비서다. 이 사람은 머릿속에 떠오르는 할 일 · 일정 · 기억할 것을 아래 [글]처럼 아무렇게나 던져 둔다. "
-        "그것을 나눠 정리하고 JSON 하나로만 답하라.\n\n"
+        "그것을 나눠 정리하고 JSON 하나로만 답하라.\n\n%s"
         "[이미 있는 것] — 아직 안 끝낸 것. 맨 앞이 id (t=할 일, p=날짜 있는 할 일·마감·일정, k=기억). "
         "'n일 지남' 은 그 날짜가 지나도록 안 끝낸 것\n%s\n\n"
         "[최근에 적은 글과 네가 한 말] — 오래된 것부터. 이번 글이 네 질문에 대한 답일 수 있다\n%s\n\n"
@@ -167,6 +172,8 @@ def prompt(text, today, ctx, hist=None):
         "- 한 가지 일 = 한 항목. 쉼표 · 줄바꿈 · '그리고' 로 서로 다른 일이 이어지면 나눈다. 한 일의 세부(누구에게 · 무엇을 · 몇 개 · 왜)는 "
         "나누지 말고 그 항목 title 에 남긴다.\n"
         "- task: 해야 할 행동(메일 · 연락 · 발주 · 구매 · 설계 · 수정 · 예약 · 준비 등). 날짜 표현이 있으면 day 를 채운다.\n"
+        "- task 는 날짜가 없어도 된다 — 날짜 없는 할 일이 곧 이 사람의 할 일 목록(오늘 · 다음 출근 날 할 것)이다. 밤에 적는 할 일은 "
+        "대개 다음 날 출근해서 할 일이니 그대로 날짜 없이 둔다.\n"
         "- deadline: 제출 · 신청 · 접수 · 납부처럼 기한이 핵심인 것.\n"
         "- event: 수업 · 회의 · 미팅 · 약속 · 시험처럼 그 날 그 시각에 있는 일.\n"
         "- note: 행동이 아니라 기억해 둘 사실 · 정보 · 들은 말 · 아이디어(번호 · 치수 · 모델명 · 가격 · 위치 · 사람 이름과 연락처). "
@@ -197,10 +204,13 @@ def prompt(text, today, ctx, hist=None):
         "[reply — 비서로서 하는 말]\n"
         "- 존댓말('~요') 1~3문장, 200자 이내. 고친 것(특히 밀려 있던 것을 찾아 날짜를 바꾼 것) · 겹치는 것 · 급한 것을 짚는다. "
         "나눈 목록을 그대로 되풀이하지 않는다. 없는 사실을 지어내지 않는다.\n"
-        "- 꼭 필요한 정보(날짜 · 숫자 · 누구)가 빠졌으면 질문 하나로 끝낸다. 그런 사실('발표날 나옴' 처럼 핵심이 빠진 것)은 note 로 "
-        "만들지 말고 묻는다. 답이 오면 해당 줄을 update.\n"
+        "- 묻는 것은 마지막 수단: 기억할 사실의 핵심(날짜 · 숫자 · 누구)이 빠져 그대로는 쓸모가 없을 때('발표날 나옴' 처럼)만 "
+        "질문 하나로 끝낸다. 그런 것은 note 로 만들지 말고 묻는다. 답이 오면 해당 줄을 update.\n"
+        "- task 의 기한 · 날짜 · 순서는 절대 묻지 않는다(기한은 사용자가 말할 때만 붙인다). deadline · event 의 날짜가 빠진 것도 "
+        "묻지 않는다 — 화면의 '날짜 확인' 칸에서 사용자가 고른다.\n"
+        "- 하는 법을 가르치는 말('메일을 먼저 보내고 …')은 하지 않는다. 짚을 것이 없으면 무엇을 어디에 넣었는지 한 문장.\n"
         "다른 말은 쓰지 말고 JSON 만.\n\n"
-        "[글]\n%s" % (today, wd, have, talk or "(없음)", today, text))
+        "[글]\n%s" % (today, wd, clock, aim, have, talk or "(없음)", today, text))
 
 
 def extract_json(out):
@@ -220,10 +230,10 @@ def extract_json(out):
     return best
 
 
-def classify(text, today, ctx, hist=None):
+def classify(text, today, ctx, hist=None, target=None):
     if classifier is not None:
         return classifier(text, today, ctx, hist)
-    return extract_json(plans.run_claude(prompt(text, today, ctx, hist), CLASSIFY_TIMEOUT))
+    return extract_json(plans.run_claude(prompt(text, today, ctx, hist, target=target), CLASSIFY_TIMEOUT))
 
 
 def reply_of(p):
@@ -311,7 +321,8 @@ def process(iid, cfg=None, conn=None):
             return
         today = common.today_str(cfg, now=row["created_ts"])        # §52.4 적은 때의 '오늘'(다시 나눠도 그때의 '내일')
         try:
-            p = classify(row["text"], today, context_lines(conn, today), history(conn, iid))
+            p = classify(row["text"], today, context_lines(conn, today), history(conn, iid),
+                         target=row["day"] if row["day"] and row["day"] > today else None)
             items, reply = normalize(p), reply_of(p)
         except Exception:
             items, reply = [], ""
