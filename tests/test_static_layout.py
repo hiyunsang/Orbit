@@ -624,9 +624,15 @@ class StaticLayoutTest(unittest.TestCase):
     def test_anki_mirror_design_59(self):
         """§59 Anki 칸 — Orbit 이 직접 받아 오는 사본의 상태 · 덱 진행 · 한 장의 타일."""
         self.assertIsNotNone(re.search(r"^##\s*59\.", self.design, re.M), "DESIGN.md 에 §59 가 없다")
-        self.assertIn("'card-events', 'card-anki', 'card-notes'", self.js, "Anki 칸은 일정 다음 타일")
+        self.assertIn("'card-events', 'card-anki', 'card-notes'", self.js, "Anki 칸은 타일")
         self.assertIn("#main.phone-pages.pg-home #card-anki:not([hidden])", self.css, "설정으로 꺼져 있으면 계속 숨는다")
-        self.assertIn("#card-anki { order: 3; }", self.css)
+        self.assertIn("#card-todos { order: 2; } #card-anki { order: 3; } #card-keeps { order: 4; }", self.css, "§59.7 할 일 바로 아래")
+        self.assertIn('<a href="#/anki" data-sec="anki">안키</a>', self.html)
+        self.assertIn("anki: 'card-anki'", self.js)
+        pa = self.js[self.js.index("function phAnki()"):self.js.index("function renderTasksPhone()")]
+        self.assertIn("if (!ankiOn() || !d || sideDate() !== todayStr()) return null;", pa, "오늘을 볼 때만, 칸이 켜져 있을 때만")
+        self.assertIn("(did ? '오늘 ' + did + '장' : '아직 안 함')", pa)
+        self.assertIn("[phAnki()].filter(Boolean)", self.js, "오늘 묶음의 마지막 줄")
         ra = self.js[self.js.index("function renderAnki()"):self.js.index("// ------------------------------------------------------------ 내 일정·마감 (§28)")]
         self.assertIn("'AnkiWeb 에서 30분마다 직접 받아 옵니다'", ra)
         self.assertIn("폰 Anki 에서 동기화를 눌러 주세요", ra, "AnkiWeb 에 올라온 것만 보인다는 안내")
@@ -780,6 +786,8 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertIn("checkBuild(st.build);", self.js)
         rw = self.js[self.js.index("function reloadWhenIdle()"):self.js.index("function loadStatus()")]
         self.assertIn("inp.value.trim()) return;", rw, "적던 글이 있으면 새로고침하지 않는다")
+        self.assertIn("if (Date.now() - lastInputAt < IDLE_RELOAD_MS) return;", rw, "§53.5 손이 가 있는 동안에는 기다린다")
+        self.assertNotIn("a.tagName === 'TEXTAREA'", rw, "§53.5 커서가 빈 칸에 놓여만 있는 것은 쉬는 것")
         self.assertIn("notes[k].timer", rw, "메모 저장 전이면 새로고침하지 않는다")
         self.assertIn("location.reload();", rw)
         self.assertIn("if (!b || MOCK) return;", self.js)

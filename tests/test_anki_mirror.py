@@ -173,6 +173,10 @@ class ProgressTest(unittest.TestCase):
     def test_progress_lines(self):
         p = anki_stats.compute(self.con, self.now)["progress"]
         self.assertEqual([x["name"] for x in p], ["초록이", "토익"], "오늘 한 덱이 먼저 — 하위 덱은 맨 위 덱으로 합친다")
+        self.con.execute("DELETE FROM revlog WHERE id >= ?", (int(self.d0 * 1000),))
+        self.con.execute("INSERT INTO revlog VALUES(?,5,0,3,1,1,2500,5000,1)", (int((self.d0 - 600) * 1000),))      # 토익을 더 최근에 봤어도
+        self.assertEqual([x["name"] for x in anki_stats.compute(self.con, self.now)["progress"]], ["초록이", "토익"], "Day 가 있는 단어장이 먼저")
+        self.con.rollback()
         c = p[0]
         self.assertEqual((c["total"], c["learned"], c["new_today"], c["today"]), (4, 3, 1, 2))
         self.assertEqual((c["day"], c["days"]), (2, 30), "본 카드 가운데 가장 큰 Day / 마지막 Day")

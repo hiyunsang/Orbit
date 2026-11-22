@@ -292,11 +292,17 @@
     if (b !== state.build) state.newBuild = true;
     if (state.newBuild) reloadWhenIdle();
   }
+  // §53.5 '쉬는 때' = 마지막으로 손댄 지 IDLE_RELOAD_MS. 커서가 빈 입력 칸에 놓여만 있는 것은 쉬는 것 — 예전에는 그것만으로 새로고침이 끝없이 미뤄졌다
+  var IDLE_RELOAD_MS = 20000, lastInputAt = Date.now();
+  ['keydown', 'pointerdown', 'input', 'wheel'].forEach(function (ev) {
+    document.addEventListener(ev, function () { lastInputAt = Date.now(); }, { capture: true, passive: true });
+  });
   function reloadWhenIdle() {
     if (!state.newBuild) return;
-    var inp = $('todo-input'), a = document.activeElement;
+    var inp = $('todo-input');
     if (inp && inp.value.trim()) return;                                   // 적던 글이 있으면 기다린다
-    if (a && (a.tagName === 'TEXTAREA' || a.tagName === 'INPUT')) return;
+    if (Date.now() - lastInputAt < IDLE_RELOAD_MS) return;                 // 손이 가 있는 동안에는 기다린다
+    for (var q in (state.ibAns || {})) if (state.ibAns[q]) return;         // §57 비서에게 적던 답
     if (state.popover) return;
     for (var k in notes) if (notes[k].timer || (notes[k].el && notes[k].el.value !== notes[k].loaded)) return;   // 메모 저장 전
     location.reload();
@@ -519,10 +525,10 @@
 
   // ------------------------------------------------------------ 폰 화면 (§39.2 → §41 → §55): 한 장을 길게 + 오른쪽 세로 바
   // §55 '타임라인' 화면은 없다 — 맨 위 궤도가 곧 타임라인(하루 · 주 · 월). 주소의 #/<이름> 은 '어디를 보고 있나' 다 — 세로 바를 누르면 그 칸으로 간다.
-  var PHONE_PAGES = ['today', 'todos', 'keeps', 'events', 'more', 'notes', 'night', 'drawer', 'notices', 'tools'];
-  var PHONE_ANCHOR = { today: 'phone-head', todos: 'card-todos', keeps: 'card-keeps', events: 'card-events', notes: 'card-notes', night: 'card-night',
+  var PHONE_PAGES = ['today', 'todos', 'anki', 'keeps', 'events', 'more', 'notes', 'night', 'drawer', 'notices', 'tools'];
+  var PHONE_ANCHOR = { today: 'phone-head', todos: 'card-todos', anki: 'card-anki', keeps: 'card-keeps', events: 'card-events', notes: 'card-notes', night: 'card-night',
                        drawer: 'card-drawer', notices: 'card-notices', tools: 'card-unknown', more: 'phone-more' };   // 칸의 맨 위가 되는 요소
-  var RAIL_ORDER = ['today', 'todos', 'keeps', 'events', 'notes', 'night', 'drawer', 'notices', 'tools', 'more'];             // 한 장 안에서 놓이는 차례
+  var RAIL_ORDER = ['today', 'todos', 'anki', 'keeps', 'events', 'notes', 'night', 'drawer', 'notices', 'tools', 'more'];             // 한 장 안에서 놓이는 차례
   // §49 PC 도 같은 화면 — 폭에 따라 배치만 다르다. 1100px 이상이면 나란히: 왼쪽은 무대(§50 · §55 궤도), 오른쪽은 한 장
   var splitMQ = window.matchMedia ? window.matchMedia('(min-width: 1100px)') : null;
   function isSplit() { return !!(splitMQ && splitMQ.matches); }
@@ -1308,6 +1314,17 @@
     if (opened) tf.forEach(function (x, i) { var sub = phEvt(x); sub.classList.add('sub'); out.push({ k: first.occ + '|~' + i, li: sub }); });
     return out;
   }
+  // §59.7 오늘 목록의 Anki 한 줄 — 오늘 복습했는지 · 남은 것. 다 했으면 끝낸 줄처럼. 누르면 Anki 칸으로
+  function phAnki() {
+    var r = state.anki, d = r && r.data;
+    if (!ankiOn() || !d || sideDate() !== todayStr()) return null;
+    var left = d.due.review + d.due.learn, did = d.today.reviews;
+    var li = h('li', { class: 'ph-row anki' + (did > 0 && left === 0 ? ' done' : ''), title: 'Anki 칸 열기', onclick: function () { openTile('card-anki', true); phoneScrollTo('anki', true); } });
+    li.appendChild(h('span', { class: 'ph-ck', 'aria-hidden': 'true' }));
+    li.appendChild(h('div', { class: 'ph-b' }, [h('div', { class: 'ph-t', text: 'Anki 복습' })]));
+    li.appendChild(h('span', { class: 'ph-tag' + (left ? ' soon' : ''), text: (did ? '오늘 ' + did + '장' : '아직 안 함') + (left ? ' · 남은 것 ' + left : '') }));
+    return li;
+  }
   function renderTasksPhone() {
     var box = $('ph-todo-list');
     if (!box) return;
@@ -1357,7 +1374,7 @@
     var urgent = nowT.filter(function (a) { var d = dueIn(a[0]); return !a[0].doing && d !== null && d <= 0; });
     grp('오늘', nowT.filter(function (a) { return a[0].doing; }).sort(byDue).map(undRow)
       .concat(foldToefl(lateP, 'now', keyOf).sort(byK).map(liOf), urgent.sort(byDue).map(undRow),
-              nowT.filter(function (a) { return !a[0].doing && urgent.indexOf(a) < 0; }).sort(byDue).map(undRow)));
+              nowT.filter(function (a) { return !a[0].doing && urgent.indexOf(a) < 0; }).sort(byDue).map(undRow), [phAnki()].filter(Boolean)));
     // 다가오는 것: 내일 ~ 이레 안, 날짜순 한 줄씩(날짜를 못 정한 것은 맨 앞)
     var soon = askP.map(function (x) { return { k: keyOf(''), li: phEvt(x) }; });
     ahead.filter(function (x) { return dueDays(x.day) <= 7; }).forEach(function (x) { soon.push({ k: keyOf(x.day), li: phTodo(x, false, true) }); });
@@ -1504,7 +1521,7 @@
     'card-anki': function () {                                    // §59 오늘 몇 장 + 남은 것 · 맨 앞 덱의 진행
       var r = state.anki, d = r && r.data;
       if (!d) return ['', r && r.mirror && r.mirror.busy ? 'AnkiWeb 에서 받는 중…' : 'Anki 기록 없음'];
-      var p = (d.progress || [])[0], due = d.due.review + d.due.learn;
+      var p = (d.progress || []).filter(function (x) { return x.days; })[0] || (d.progress || [])[0], due = d.due.review + d.due.learn;   // Day 가 있는 단어장이 먼저
       return [d.today.reviews + '장', '오늘 · 남은 것 ' + due + (p ? ' · ' + ankiProg(p) : '')];
     },
     'card-devices': function (c) { return ['', tx(c.querySelector('.dev-line .grow'))]; }
@@ -1808,6 +1825,7 @@
       // AnkiConnect 로 sync 를 눌러 둔 상태면 끝날 때까지 20초마다 다시 본다 (끝나면 서버 캐시가 비워져 새 숫자가 온다)
       if (r && r.connect && r.connect.busy) setTimeout(function () { loadAnki(false); }, 20000);
       if (r && r.mirror && r.mirror.busy) setTimeout(function () { loadAnki(false); }, 4000);       // §59 받는 동안은 곧 다시 본다
+      renderTasks();                                                                                  // §59.7 오늘 목록의 Anki 한 줄
     }).catch(fail('Anki 읽기 실패'));
   }
   function renderAnki() {

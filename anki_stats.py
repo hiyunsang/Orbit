@@ -196,7 +196,7 @@ def _progress(con, names, day0, by_deck):
             continue            # 다 본 지 한 달 넘은 덱은 진행 줄에서 뺀다
         out.append({"name": name, "total": p["total"], "learned": p["learned"], "new_today": p["new_today"],
                     "today": int(by_deck.get(name, 0)), "day": p["day"], "days": p["days"], "last": p["last"] or None})
-    out.sort(key=lambda x: (-x["today"], -(x["last"] or 0), -x["total"]))
+    out.sort(key=lambda x: (-x["today"], 0 if x["days"] else 1, -(x["last"] or 0), -x["total"]))
     return out[:PROGRESS_MAX]
 
 

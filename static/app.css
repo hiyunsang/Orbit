@@ -594,8 +594,9 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
   #main.phone-pages.pg-home #card-night, #main.phone-pages.pg-home #card-drawer, #main.phone-pages.pg-home #card-notices:not([hidden]), #main.phone-pages.pg-home #card-anki:not([hidden]),
   #main.phone-pages.pg-home #card-unknown, #main.phone-pages.pg-home #card-pause, #main.phone-pages.pg-home #card-reading:not([hidden]),
   #main.phone-pages.pg-home #card-devices:not([hidden]), #main.phone-pages:not(.view-day) #card-period:not([hidden]) { display: block !important; }
-  #card-tonight { order: 1; } #card-todos { order: 2; } #card-keeps { order: 2; } #card-events { order: 3; } #card-anki { order: 3; } #card-notes { order: 4; } #card-night { order: 5; } #card-drawer { order: 6; }
-  #card-notices { order: 7; } #card-unknown { order: 8; } #card-pause { order: 9; } #card-reading { order: 10; } #card-devices { order: 11; }
+  #card-tonight { order: 1; } #card-todos { order: 2; } #card-anki { order: 3; } #card-keeps { order: 4; } #card-events { order: 5; } #card-notes { order: 6; } #card-night { order: 7; } #card-drawer { order: 8; }
+  #card-notices { order: 9; } #card-unknown { order: 10; } #card-pause { order: 11; } #card-reading { order: 12; } #card-devices { order: 13; }   /* §59.7 Anki 는 할 일 바로 아래 */
+  .ph-row.anki { cursor: pointer; }
   /* 화면 머리: 날짜가 제목 */
   .phone-head { padding: 20px var(--gut) 10px; }
   .ph-row1 { display: flex; align-items: flex-end; }
