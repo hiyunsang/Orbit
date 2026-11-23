@@ -621,6 +621,17 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertIn("half = Math.min(oz.W, oz.H) / k / 2 * 0.8", cl)
         self.assertIn("lo = Math.max(0, b[0] - half), hi = b[1] + half", cl, "가운데 빈 곳도 원 바깥도 안 된다")
 
+    def test_doing_then_done_60(self):
+        """§60 대기 → 하는 중 → 끝 — 하는 중인 일의 단추는 끝냄이 먼저, 되돌리기는 그 옆."""
+        self.assertIsNotNone(re.search(r"^##\s*60\.", self.design, re.M), "DESIGN.md 에 §60 이 없다")
+        pt = self.js[self.js.index("function phTodo(it, carried, ahead)"):self.js.index("function listPlans()")]
+        self.assertNotIn("하는 중 — 대기로", pt, "한 단추로 오가지 않는다")
+        self.assertNotIn("doing: it.doing ? 0 : 1", pt)
+        self.assertIn("if (!it.done && !it.doing) pills.push(h('button', { class: 'ph-pill', type: 'button', text: '하는 중으로'", pt)
+        self.assertLess(pt.index("text: '끝냄'"), pt.index("text: '대기로'"), "하는 중이면 끝냄이 먼저")
+        self.assertIn("if (Date.now() - (state.doingAt || 0) < DOUBLE_TAP_MS) return;", pt, "연달아 두 번 누른 것은 끝냄이 아니다")
+        self.assertIn("return phRow('t' + it.id, it.text, meta, !!it.done, check, function (box) {", pt, "끝냄 단추와 동그라미는 같은 일")
+
     def test_anki_mirror_design_59(self):
         """§59 Anki 칸 — Orbit 이 직접 받아 오는 사본의 상태 · 덱 진행 · 한 장의 타일."""
         self.assertIsNotNone(re.search(r"^##\s*59\.", self.design, re.M), "DESIGN.md 에 §59 가 없다")

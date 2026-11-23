@@ -1229,6 +1229,7 @@
     });
   }
   function dueDays(day) { return Math.round((parseDate(day) - parseDate(todayStr())) / 86400000); }
+  var DOUBLE_TAP_MS = 700;                                       // §60 같은 자리를 연달아 두 번 누른 것
   function phTodo(it, carried, ahead) {
     // §51 '하는 중' 은 묶음 이름이 말해 준다 — 줄에는 분야와 적은 날. §52.2 기한이 있으면 적은 날 대신 기한, 오른쪽 열은 일정과 같은 규칙
     var due = !it.done && it.due ? dueDays(it.due) : null;
@@ -1242,16 +1243,27 @@
       : ahead ? [mt, '', dayTag(it.day)]
       : it.someday ? [mt, '', '나중에']
       : old >= STALE_DAYS ? [mt, '', old + '일 전'] : [mt, ''];
-    return phRow('t' + it.id, it.text, meta, !!it.done, function () {
+    var check = function () {
       var body = { id: it.id, done: it.done ? 0 : 1 };
       if ((carried || ahead) && !it.done) body.day = sideDate();   // §20: 전에(§57.5 앞날로) 적은 할 일을 끝내면 '그 날 한 일' 로
       api('/api/todos/update', body).then(loadTodos).catch(fail('할 일 갱신 실패'));
-    }, function (box) {
+    };
+    return phRow('t' + it.id, it.text, meta, !!it.done, check, function (box) {
       var pills = [];
       if (!it.done && (ahead || (carried && (it.someday || old >= 1)))) pills.push(h('button', { class: 'ph-pill', type: 'button', text: '오늘 하기', onclick: function () {   // §58 쌓아 둔 것 · 내일 것을 오늘로
         api('/api/todos/update', { id: it.id, day: sideDate(), someday: 0 }).then(loadTodos).catch(fail('할 일 갱신 실패')); } }));
-      if (!it.done) pills.push(h('button', { class: 'ph-pill' + (it.doing ? ' on' : ''), type: 'button', text: it.doing ? '하는 중 — 대기로' : '하는 중으로', onclick: function () {
-        api('/api/todos/update', { id: it.id, doing: it.doing ? 0 : 1 }).then(loadTodos).catch(fail('할 일 갱신 실패')); } }));
+      // §60 한 방향: 대기 → 하는 중 → 끝. 하는 중인 일의 다음 걸음은 끝냄 — 대기로 되돌리기는 그 옆에
+      if (!it.done && !it.doing) pills.push(h('button', { class: 'ph-pill', type: 'button', text: '하는 중으로', onclick: function () {
+        state.doingAt = Date.now();
+        api('/api/todos/update', { id: it.id, doing: 1 }).then(loadTodos).catch(fail('할 일 갱신 실패')); } }));
+      if (!it.done && it.doing) {
+        pills.push(h('button', { class: 'ph-pill on', type: 'button', text: '끝냄', onclick: function () {
+          if (Date.now() - (state.doingAt || 0) < DOUBLE_TAP_MS) return;     // 방금 '하는 중으로' 를 누른 손이 한 번 더 닿은 것
+          state.phOpen = null;
+          check(); } }));
+        pills.push(h('button', { class: 'ph-pill', type: 'button', text: '대기로', onclick: function () {
+          api('/api/todos/update', { id: it.id, doing: 0 }).then(loadTodos).catch(fail('할 일 갱신 실패')); } }));
+      }
       if (!it.done && !it.doing) pills.push(h('button', { class: 'ph-pill', type: 'button', text: it.someday ? '지금 할 일로' : '나중에로', onclick: function () {
         api('/api/todos/update', { id: it.id, someday: it.someday ? 0 : 1 }).then(loadTodos).catch(fail('할 일 갱신 실패')); } }));
       if (!it.done && it.due) pills.push(h('button', { class: 'ph-pill', type: 'button', text: '기한 빼기', onclick: function () {     // §52.2
