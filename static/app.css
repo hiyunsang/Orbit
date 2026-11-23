@@ -677,6 +677,16 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
   .ph-row.doing .ph-ck { border-color: var(--text); background: linear-gradient(90deg, transparent 50%, var(--text) 50%); }   /* 하는 중 = 반달 */
   .ph-row.done .ph-ck { background: var(--text-3); border-color: var(--text-3); }
   .ph-row.done .ph-ck::before { content: ""; position: absolute; left: 4.5px; top: 1.5px; width: 4px; height: 8px; border: solid var(--pg); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
+  /* §61 동그라미를 누른 줄: 체크가 톡 그려지고(pop) 줄 그은 글자로 머물다(pend) 접혀 나간다(leaving). '끝낸 것 n' 은 잠깐 밝게(bump) */
+  .ph-row.pop .ph-ck { animation: ph-pop .26s ease-out; }
+  .ph-row.pend .ph-b, .ph-row.pend .ph-tag { cursor: default; }
+  .ph-row.pend .ph-tag { opacity: .45; }
+  .ph-row.leaving { overflow: hidden; pointer-events: none; animation: ph-leave .28s ease-in both; }
+  .ph-row.chev.bump { animation: ph-bump 1.5s ease-out; }
+  @keyframes ph-pop { 0% { transform: scale(.6); } 55% { transform: scale(1.22); } 100% { transform: scale(1); } }
+  @keyframes ph-leave { from { max-height: var(--h, 64px); opacity: 1; } to { max-height: 0; padding-top: 0; padding-bottom: 0; border-bottom-width: 0; opacity: 0; } }
+  @keyframes ph-bump { 0%, 40% { color: var(--text); } 100% { color: var(--text-3); } }
+  @media (prefers-reduced-motion: reduce) { .ph-row.pop .ph-ck, .ph-row.chev.bump { animation: none; } .ph-row.leaving { animation: none; display: none; } }
   .ph-b { flex: 1; min-width: 0; cursor: pointer; }
   .ph-t { font-size: 15px; font-weight: 400; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
   .ph-row.done .ph-t { color: var(--text-3); text-decoration: line-through; }

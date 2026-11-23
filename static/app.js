@@ -220,13 +220,14 @@
       throw e;
     });
   }
-  var api = function (path, body) {
+  var api = function (path, body, keep) {
     if (MOCK) return mockApi(path, body);
     var opt = { method: 'GET', headers: {} };
     if (body !== undefined) {
       opt.method = 'POST';
       opt.headers['Content-Type'] = 'application/json; charset=utf-8';
       opt.body = JSON.stringify(body);
+      if (keep) opt.keepalive = true;                   // §61 창이 가려지거나 닫히는 중에 보내는 것
     }
     return (opt.method === 'GET' ? fetchGet(path, opt, 0) : fetch(path, opt)).then(function (r) {
       return r.json().catch(function () { return { error: 'HTTP ' + r.status }; }).then(function (j) {
@@ -302,6 +303,7 @@
     var inp = $('todo-input');
     if (inp && inp.value.trim()) return;                                   // 적던 글이 있으면 기다린다
     if (Date.now() - lastInputAt < IDLE_RELOAD_MS) return;                 // 손이 가 있는 동안에는 기다린다
+    if (Object.keys(ckPend).length) return;                                // §61 아직 보내지 않은 동그라미
     for (var q in (state.ibAns || {})) if (state.ibAns[q]) return;         // §57 비서에게 적던 답
     if (state.popover) return;
     for (var k in notes) if (notes[k].timer || (notes[k].el && notes[k].el.value !== notes[k].loaded)) return;   // 메모 저장 전
@@ -1174,17 +1176,73 @@
     loadStrip(false);
   }
   // 할 일 줄: 동그라미(완료) + 제목 + 한 줄. 누르면 펼쳐져 설명과 동작이 나온다. 데이터·API 는 넓은 화면의 renderTasks 와 같다
+  // §61 동그라미 — 누른 자리에서 체크가 그려지고 글자에 줄이 그어진 채 잠깐 머문 뒤(pend) 줄이 접혀 나간다(leaving).
+  // 이어서 여러 개를 누르면 마지막으로 누른 뒤에 한꺼번에 나간다 — 누르는 동안 줄이 밀려 올라와 엉뚱한 줄을 누르지 않게.
+  // 머무는 동안 다시 누르면 없던 일. 서버에는 나갈 때 보낸다(창이 가려지거나 닫히면 그때 바로) — 그래서 되돌려도 기록이 흔들리지 않는다.
+  var CK_HOLD_MS = 900, CK_OUT_MS = 280, CK_BUMP_MS = 1500;
+  var ckPend = {}, ckTimer = null, ckBump = 0;                    // key → { path, body, reload, toDone, out(나가기 시작한 때), h(줄 높이) }
+  function ckOut(li, lv) {                                        // 접혀 나가는 모습 — 다시 그려져도 하던 데서 이어서
+    li.style.setProperty('--h', lv.h + 'px');
+    li.style.animationDelay = Math.min(0, lv.out - Date.now()) + 'ms';
+    li.classList.add('leaving');
+  }
+  function ckTap(key, li, done, onCheck) {
+    var lv = ckPend[key];
+    if (lv) {
+      if (lv.out) return;                                         // 이미 나가는 중 — 보냈다
+      delete ckPend[key];                                         // 머무는 동안 다시 누름 → 없던 일(아직 보내지 않았다)
+      renderTasks();
+      return;
+    }
+    var act = onCheck();                                          // { path, body, reload } — 지금 보내지 않는다
+    ckPend[key] = { path: act.path, body: act.body, reload: act.reload, toDone: !done, out: 0, h: 0 };
+    if (state.phOpen === key) state.phOpen = null;
+    li.classList.remove('open', 'doing');
+    li.classList.toggle('done', !done);
+    li.classList.add('pend', 'pop');
+    clearTimeout(ckTimer);
+    ckTimer = setTimeout(ckGo, CK_HOLD_MS);
+  }
+  function ckGo(hurry) {                                          // hurry: 창이 가려지거나 닫히는 중 — 접히기를 기다리지 않고 한꺼번에 보낸다
+    clearTimeout(ckTimer); ckTimer = null;
+    var keys = Object.keys(ckPend).filter(function (k) { return !ckPend[k].out; });
+    if (!keys.length) return;
+    var now = Date.now(), reloads = [], sent = [], chain = Promise.resolve(), anyDone = false;
+    keys.forEach(function (k) {
+      var lv = ckPend[k], li = document.querySelector('#ph-todo-list [data-k="' + k + '"]');
+      lv.out = now; lv.h = li ? li.offsetHeight : 0;
+      if (li) ckOut(li, lv);
+      if (reloads.indexOf(lv.reload) < 0) reloads.push(lv.reload);
+      if (lv.toDone) anyDone = true;
+      var send = function () { return api(lv.path, lv.body, true).catch(fail('갱신 실패')); };   // 하나가 실패해도 나머지는 보낸다
+      if (hurry === true) sent.push(send()); else chain = chain.then(send);
+    });
+    sent.push(chain, new Promise(function (res) { setTimeout(res, hurry === true ? 0 : CK_OUT_MS); }));
+    Promise.all(sent).then(function () {
+      return Promise.all(reloads.map(function (f) { return f(); }));   // 새 목록을 읽는 동안 나간 줄은 접힌 채
+    }).then(function () {
+      keys.forEach(function (k) { delete ckPend[k]; });
+      if (anyDone) ckBump = Date.now();                           // '끝낸 것 n' 이 잠깐 밝아진다 — 어디로 갔는지
+      renderTasks();
+    });
+  }
+  document.addEventListener('visibilitychange', function () { if (document.hidden) ckGo(true); });
+  window.addEventListener('pagehide', function () { ckGo(true); });
   function phRow(key, title, meta, done, onCheck, fill) {
     var tag = meta && meta[2];                                    // §40 오른쪽 열: D-3 · 오늘 · 2일 지남 — 색은 여기에만
-    var li = h('li', { class: 'ph-row' + (done ? ' done' : '') + (meta && (meta[1] === 'doing' || meta[3]) ? ' doing' : '') + (state.phOpen === key ? ' open' : '') });
-    li.appendChild(h('button', { class: 'ph-ck', type: 'button', 'aria-label': done ? '되돌리기' : '끝냄', onclick: function (e) { e.stopPropagation(); onCheck(); } }));
+    var lv = ckPend[key], shown = lv ? !done : done;              // §61 동그라미를 누른 줄은 뒤집힌 모습으로(다시 그려져도)
+    var li = h('li', { 'data-k': key, class: 'ph-row' + (shown ? ' done' : '') + (!shown && meta && (meta[1] === 'doing' || meta[3]) ? ' doing' : '') + (!lv && state.phOpen === key ? ' open' : '') + (lv ? ' pend' : '') });
+    if (lv && lv.out) ckOut(li, lv);
+    var doCheck = function () { ckTap(key, li, done, onCheck); };
+    li.appendChild(h('button', { class: 'ph-ck', type: 'button', 'aria-label': shown ? '되돌리기' : '끝냄', onclick: function (e) { e.stopPropagation(); doCheck(); } }));
     var b = h('div', { class: 'ph-b' }, [h('div', { class: 'ph-t', text: title })]);
     if (meta && meta[0]) b.appendChild(h('div', { class: 'ph-m ' + (tag ? '' : (meta[1] || '')), text: meta[0] }));
     var x = h('div', { class: 'ph-x' });
-    fill(x);
+    fill(x, doCheck);
     b.appendChild(x);
     var toggle = function (e) {
       if (e.target.closest && e.target.closest('.ph-x')) return;
+      if (ckPend[key]) return;                                    // 나가는 줄은 펼치지 않는다
       state.phOpen = state.phOpen === key ? null : key;
       renderTasks();
     };
@@ -1210,8 +1268,9 @@
   function phEvt(x) {
     var weekly = x.repeat === 'weekly' && !x.done;
     return phRow('e' + x.id, x.title, phMetaEvt(x), !!x.done, function () {
-      if (weekly) evtUpdate(x.id, { skip_until: shiftDate(x.occ || todayStr(), 1) });   // 매주 일정: 이번 주 것만 끝
-      else evtUpdate(x.id, { done: x.done ? 0 : 1 });
+      var body = weekly ? { id: x.id, skip_until: shiftDate(x.occ || todayStr(), 1) }   // 매주 일정: 이번 주 것만 끝
+        : { id: x.id, done: x.done ? 0 : 1 };
+      return { path: '/api/events/update', body: body, reload: loadEvents };
     }, function (box) {
       if (x.note && x.status !== 'parsing') box.appendChild(h('div', { text: x.note }));
       var pills = [], inp = null;
@@ -1246,9 +1305,9 @@
     var check = function () {
       var body = { id: it.id, done: it.done ? 0 : 1 };
       if ((carried || ahead) && !it.done) body.day = sideDate();   // §20: 전에(§57.5 앞날로) 적은 할 일을 끝내면 '그 날 한 일' 로
-      api('/api/todos/update', body).then(loadTodos).catch(fail('할 일 갱신 실패'));
+      return { path: '/api/todos/update', body: body, reload: loadTodos };
     };
-    return phRow('t' + it.id, it.text, meta, !!it.done, check, function (box) {
+    return phRow('t' + it.id, it.text, meta, !!it.done, check, function (box, doCheck) {
       var pills = [];
       if (!it.done && (ahead || (carried && (it.someday || old >= 1)))) pills.push(h('button', { class: 'ph-pill', type: 'button', text: '오늘 하기', onclick: function () {   // §58 쌓아 둔 것 · 내일 것을 오늘로
         api('/api/todos/update', { id: it.id, day: sideDate(), someday: 0 }).then(loadTodos).catch(fail('할 일 갱신 실패')); } }));
@@ -1259,8 +1318,7 @@
       if (!it.done && it.doing) {
         pills.push(h('button', { class: 'ph-pill on', type: 'button', text: '끝냄', onclick: function () {
           if (Date.now() - (state.doingAt || 0) < DOUBLE_TAP_MS) return;     // 방금 '하는 중으로' 를 누른 손이 한 번 더 닿은 것
-          state.phOpen = null;
-          check(); } }));
+          doCheck(); } }));                                                   // §61 동그라미를 누른 것과 같다 — 체크가 그려지고 머문 뒤 나간다
         pills.push(h('button', { class: 'ph-pill', type: 'button', text: '대기로', onclick: function () {
           api('/api/todos/update', { id: it.id, doing: 0 }).then(loadTodos).catch(fail('할 일 갱신 실패')); } }));
       }
@@ -1372,7 +1430,8 @@
     };
     var foldGrp = function (label, rows, flag) {                   // 접힌 묶음: 개수만 — 누르면 펼친다
       if (!rows.length) return;
-      var head = h('li', { class: 'ph-row chev' + (state[flag] ? ' up' : ''), text: label + ' ' + rows.length, onclick: function () { state[flag] = !state[flag]; renderTasks(); } });
+      var bump = flag === 'tasksDoneOpen' && Date.now() - ckBump < CK_BUMP_MS;      // §61 방금 끝낸 것이 여기로 왔다
+      var head = h('li', { class: 'ph-row chev' + (state[flag] ? ' up' : '') + (bump ? ' bump' : ''), text: label + ' ' + rows.length, onclick: function () { state[flag] = !state[flag]; renderTasks(); } });
       box.appendChild(h('div', { class: 'ph-gh' }));
       box.appendChild(h('ul', { class: 'ph-grp' }, state[flag] ? [head].concat(rows) : [head]));
     };

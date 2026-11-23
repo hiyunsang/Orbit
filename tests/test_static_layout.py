@@ -621,6 +621,36 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertIn("half = Math.min(oz.W, oz.H) / k / 2 * 0.8", cl)
         self.assertIn("lo = Math.max(0, b[0] - half), hi = b[1] + half", cl, "가운데 빈 곳도 원 바깥도 안 된다")
 
+    def test_check_then_leave_61(self):
+        """§61 동그라미 — 그 자리에서 체크, 잠깐 머문 뒤 접혀 나간다. 서버에는 나갈 때."""
+        self.assertIsNotNone(re.search(r"^##\s*61\.", self.design, re.M), "DESIGN.md 에 §61 이 없다")
+        ck = self.js[self.js.index("var CK_HOLD_MS = 900,"):self.js.index("function phRow(key, title, meta, done, onCheck, fill)")]
+        tap = ck[ck.index("function ckTap("):ck.index("function ckGo(")]
+        self.assertNotIn("api(", tap, "누른 순간에는 보내지 않는다")
+        self.assertIn("delete ckPend[key];", tap, "머무는 동안 다시 누르면 없던 일")
+        self.assertIn("if (lv.out) return;", tap, "이미 나가는 줄은 되돌리지 않는다")
+        self.assertIn("clearTimeout(ckTimer);", tap, "이어서 누르면 마지막으로 누른 뒤에 한꺼번에")
+        self.assertIn("ckTimer = setTimeout(ckGo, CK_HOLD_MS);", tap)
+        self.assertIn("li.classList.add('pend', 'pop');", tap)
+        go = ck[ck.index("function ckGo("):]
+        self.assertIn("api(lv.path, lv.body, true).catch(fail('갱신 실패'))", go, "나갈 때 보낸다 — 하나가 실패해도 나머지는")
+        self.assertIn("if (hurry === true) sent.push(send()); else chain = chain.then(send);", go)
+        self.assertIn("document.addEventListener('visibilitychange', function () { if (document.hidden) ckGo(true); });", go, "가려지면 바로 보낸다")
+        self.assertIn("window.addEventListener('pagehide', function () { ckGo(true); });", go)
+        self.assertIn("if (keep) opt.keepalive = true;", self.js)
+        row = self.js[self.js.index("function phRow(key, title, meta, done, onCheck, fill)"):self.js.index("function dayTag(day)")]
+        self.assertIn("var lv = ckPend[key], shown = lv ? !done : done;", row, "다시 그려져도 뒤집힌 모습으로")
+        self.assertIn("if (lv && lv.out) ckOut(li, lv);", row)
+        self.assertIn("if (ckPend[key]) return;", row, "나가는 줄은 펼치지 않는다")
+        self.assertNotIn("onCheck(); }", row, "동그라미가 곧장 보내지 않는다")
+        self.assertIn("return { path: '/api/events/update', body: body, reload: loadEvents };", self.js, "일정 줄도 같다")
+        self.assertIn("return { path: '/api/todos/update', body: body, reload: loadTodos };", self.js)
+        self.assertIn("if (Object.keys(ckPend).length) return;", self.js, "보내지 않은 것이 있으면 저절로 새로고침하지 않는다")
+        self.assertIn("(bump ? ' bump' : '')", self.js, "끝낸 것 n 이 잠깐 밝아진다")
+        for w in (".ph-row.pop .ph-ck { animation: ph-pop .26s ease-out; }", ".ph-row.leaving { overflow: hidden; pointer-events: none; animation: ph-leave .28s ease-in both; }",
+                  "@keyframes ph-leave { from { max-height: var(--h, 64px); opacity: 1; }", ".ph-row.leaving { animation: none; display: none; }"):
+            self.assertIn(w, self.css)
+
     def test_doing_then_done_60(self):
         """§60 대기 → 하는 중 → 끝 — 하는 중인 일의 단추는 끝냄이 먼저, 되돌리기는 그 옆."""
         self.assertIsNotNone(re.search(r"^##\s*60\.", self.design, re.M), "DESIGN.md 에 §60 이 없다")
@@ -630,7 +660,8 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertIn("if (!it.done && !it.doing) pills.push(h('button', { class: 'ph-pill', type: 'button', text: '하는 중으로'", pt)
         self.assertLess(pt.index("text: '끝냄'"), pt.index("text: '대기로'"), "하는 중이면 끝냄이 먼저")
         self.assertIn("if (Date.now() - (state.doingAt || 0) < DOUBLE_TAP_MS) return;", pt, "연달아 두 번 누른 것은 끝냄이 아니다")
-        self.assertIn("return phRow('t' + it.id, it.text, meta, !!it.done, check, function (box) {", pt, "끝냄 단추와 동그라미는 같은 일")
+        self.assertIn("return phRow('t' + it.id, it.text, meta, !!it.done, check, function (box, doCheck) {", pt, "끝냄 단추와 동그라미는 같은 일")
+        self.assertIn("doCheck(); } }));", pt, "§61 끝냄 단추도 체크하고 머문 뒤 나간다")
 
     def test_anki_mirror_design_59(self):
         """§59 Anki 칸 — Orbit 이 직접 받아 오는 사본의 상태 · 덱 진행 · 한 장의 타일."""
