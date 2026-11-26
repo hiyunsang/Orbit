@@ -411,6 +411,18 @@ textarea:disabled { background: var(--panel); color: var(--text-3); }
 .drawer-row .drawer-v img { height: 28px; max-width: 120px; object-fit: contain; background: #ffffff; border: 1px solid var(--line); flex: 0 0 auto; }   /* 사인은 종이 위의 잉크 — 어두운 화면에서도 흰 바탕(§39.1) */
 .drawer-row .act { flex: 0 0 auto; padding: 2px 6px; }
 .drawer-row.copied .drawer-v { color: var(--accent); font-weight: 500; }
+/* §62 여러 줄 항목 — 줄마다 따로 눌리는 조각 */
+.list li.drawer-row.multi { cursor: default; align-items: baseline; }
+.drawer-row.multi:hover { background: none; }
+.drawer-row .drawer-v.lines { flex-direction: column; align-items: stretch; gap: 4px; }
+.drawer-row .drawer-ln { display: flex; align-items: baseline; gap: var(--s2); padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--r); cursor: pointer; }
+.drawer-row .drawer-ln:hover { background: var(--hover); border-color: var(--line-2); }
+.drawer-row .drawer-ln:focus-visible { outline: none; border-color: var(--accent); }
+.drawer-row .drawer-lk { flex: 0 0 auto; font-size: 11px; font-weight: 400; color: var(--text-3); }
+.drawer-row .drawer-lv { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.drawer-row .drawer-ln.copied { border-color: var(--accent); color: var(--accent); }
+.drawer-row .drawer-ln.copied .drawer-lv { font-weight: 500; }
+@media (hover: none) and (pointer: coarse) { .drawer-row .drawer-ln { padding-top: 8px; padding-bottom: 8px; } }
 
 /* ── §36 다른 기기: 이 PC 의 설정 카드, 밖에서 열었을 때 숨길 것, 폰 화면 ── */
 #devices-body { font-size: 12px; }

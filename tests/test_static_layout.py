@@ -341,6 +341,23 @@ class StaticLayoutTest(unittest.TestCase):
         self.assertIn("isinstance(result, Raw)", self.server)
         self.assertIn("CREATE TABLE IF NOT EXISTS drawer(", _read(os.path.join(ROOT, "common.py")))
 
+    def test_drawer_lines_62(self):
+        self.assertIsNotNone(re.search(r"^##\s*62\.", self.design, re.M), "DESIGN.md 에 §62(서랍 줄마다 따로) 가 없다")
+        fn = self.js[self.js.index("function drawerLines(value) {"):self.js.index("function drawerCopy(it, li) {")]
+        self.assertIn("if (out.length < 2 && !(out.length && out[0].k)) return null;", fn, "그 밖의 한 줄짜리는 전과 같다")
+        self.assertIn("(?::\\s+|：\\s*)", self.js, "콜론 뒤 빈칸이 있어야 이름 — https:// · 10:30 은 값")
+        self.assertIn("copyText(ln.v)", fn, "줄을 누르면 그 줄의 값만")
+        self.assertIn("setData('text/plain', ln.v)", fn, "끌어도 그 줄만")
+        self.assertIn("e.stopPropagation();", fn)
+        rd = self.js[self.js.index("function renderDrawer() {"):self.js.index("var drawerDragged = false;")]
+        self.assertIn("var lines = it.kind === 'text' ? drawerLines(it.value) : null;", rd)
+        self.assertIn("if (!lines) {", rd, "조각이 있는 항목은 줄 밖을 눌러도 통째로 복사하지 않는다")
+        for sel in (".list li.drawer-row.multi { cursor: default; align-items: baseline; }", ".drawer-row .drawer-v.lines {", ".drawer-row .drawer-ln {",
+                    ".drawer-row .drawer-ln.copied {", ".drawer-row .drawer-lk {", ".drawer-row .drawer-lv {"):
+            self.assertIn(sel, self.css, "§62 CSS %s" % sel)
+        self.assertIn('id="drawer-lines-hint"', self.html)
+        self.assertIn("someone@example.com", self.js, "목업 계정은 자리 표시")
+
     def test_devices_design_36(self):
         self.assertIsNotNone(re.search(r"^##\s*36\.", self.design, re.M), "DESIGN.md 에 §36(다른 기기) 이 없다")
         self.assertIn('<section class="side-sec" id="card-devices" hidden>', self.html, "§36.4 설정 카드는 숨긴 채 시작(밖에서 열면 계속 숨김)")

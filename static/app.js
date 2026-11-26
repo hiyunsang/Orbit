@@ -396,6 +396,46 @@
       img.src = url;
     });
   }
+  // §62 여러 줄 내용은 줄마다 따로 — '이름: 값' 이면 값만 복사한다(계정의 ID · 비밀번호를 한 항목에)
+  var DRAWER_KEY_RE = /^([^:：]{1,12}?)(?::\s+|：\s*)(\S.*)$/;       // 콜론 뒤 빈칸이 있어야 이름 — https://… · 10:30 은 값
+  function drawerLines(value) {
+    var rows = String(value || '').split(/\r?\n/).map(function (s) { return s.trim(); }).filter(Boolean);
+    var out = rows.map(function (s) {
+      var m = DRAWER_KEY_RE.exec(s);
+      var k = m ? m[1].trim() : '';
+      return k ? { k: k, v: m[2] } : { k: '', v: s };
+    });
+    if (out.length < 2 && !(out.length && out[0].k)) return null;      // 그 밖의 한 줄짜리는 전과 같다(줄 전체가 한 덩어리)
+    return out;
+  }
+  function drawerCopyLine(it, ln, i, el) {
+    copyText(ln.v).then(function () {
+      toast('복사했어요 — ' + it.label + ' ' + (ln.k || (i + 1) + '번째 줄'), 1800);
+      el.classList.add('copied'); setTimeout(function () { el.classList.remove('copied'); }, 1200);
+    }).catch(fail('복사 실패'));
+  }
+  function drawerLineEl(it, ln, i) {
+    var el = h('span', { class: 'drawer-ln', role: 'button', tabindex: '0', title: '누르면 이 줄만 복사 · 끌어서 놓기' },
+      [ln.k ? h('span', { class: 'drawer-lk', text: ln.k }) : null, h('span', { class: 'drawer-lv', text: ln.v })]);
+    el.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (drawerDragged) { drawerDragged = false; return; }
+      drawerCopyLine(it, ln, i, el);
+    });
+    el.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault(); drawerCopyLine(it, ln, i, el);
+    });
+    el.draggable = true;
+    el.addEventListener('pointerdown', function () { drawerDragged = false; });
+    el.addEventListener('dragstart', function (e) {
+      if (!e.dataTransfer) return;
+      drawerDragged = true;
+      e.dataTransfer.effectAllowed = 'copy';
+      e.dataTransfer.setData('text/plain', ln.v);
+    });
+    return el;
+  }
   function drawerCopy(it, li) {
     var p;
     if (it.kind === 'text') p = copyText(it.value);
@@ -419,9 +459,12 @@
       return;
     }
     items.forEach(function (it) {
+      var lines = it.kind === 'text' ? drawerLines(it.value) : null;      // §62 조각으로 나뉘는 항목
       var v = it.kind === 'file'
         ? h('span', { class: 'drawer-v' }, [it.is_image ? h('img', { src: it.url, alt: it.label }) : null, h('span', { text: it.value || '파일' })])
-        : h('span', { class: 'drawer-v' }, [h('span', { text: it.value })]);
+        : lines
+          ? h('span', { class: 'drawer-v lines' }, lines.map(function (ln, i) { return drawerLineEl(it, ln, i); }))
+          : h('span', { class: 'drawer-v' }, [h('span', { text: it.value })]);
       var kids = [
         h('button', { class: 'drawer-k', type: 'button', title: '이름·내용 고치기', text: it.label, onclick: function (e) { e.stopPropagation(); openDrawerAdd(it); } }),
         v
@@ -432,12 +475,14 @@
       kids.push(h('button', { class: 'act btn-del', type: 'button', title: '삭제', text: '×', onclick: function (e) {
         e.stopPropagation(); api('/api/drawer/delete', { id: it.id }).then(loadDrawer).catch(fail('삭제 실패'));
       } }));
-      var li = h('li', { class: 'list-row drawer-row', title: (it.kind === 'text' ? '누르면 복사' : (it.is_image ? '누르면 그림 복사' : '누르면 열기')) + ' · 끌어서 놓기' }, kids);
-      li.addEventListener('click', function () {
-        if (drawerDragged) { drawerDragged = false; return; }       // 끌고 난 뒤의 click 은 복사 · 열기가 아니다
-        drawerCopy(it, li);
-      });
-      drawerDrag(li, it);
+      var li = h('li', { class: 'list-row drawer-row' + (lines ? ' multi' : ''), title: lines ? null : (it.kind === 'text' ? '누르면 복사' : (it.is_image ? '누르면 그림 복사' : '누르면 열기')) + ' · 끌어서 놓기' }, kids);
+      if (!lines) {                                                   // §62 조각이 있는 항목은 줄 밖을 눌러도 통째로 복사하지 않는다
+        li.addEventListener('click', function () {
+          if (drawerDragged) { drawerDragged = false; return; }       // 끌고 난 뒤의 click 은 복사 · 열기가 아니다
+          drawerCopy(it, li);
+        });
+        drawerDrag(li, it);
+      }
       ul.appendChild(li);
     });
   }
@@ -3725,6 +3770,7 @@
       if (!db.drawer) db.drawer = [
         { id: 9001, kind: 'text', label: '학교 사업자번호', value: '000-00-00000 (자리 표시)', mime: null, size: null, url: null, is_image: false },
         { id: 9002, kind: 'text', label: '학교 주소', value: '서울특별시 마포구 와우산로 94 홍익대학교 (자리 표시)', mime: null, size: null, url: null, is_image: false },
+        { id: 9004, kind: 'text', label: '쇼핑몰 계정', value: 'ID: someone@example.com\n비번: jari-pyosi-1234', mime: null, size: null, url: null, is_image: false },   // §62 자리 표시
         { id: 9003, kind: 'file', label: '사인', value: 'sign.svg', mime: 'image/svg+xml', size: 300, is_image: true,
           url: 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40"><path d="M5 30 C 20 5, 35 5, 45 25 S 70 35, 80 15 S 100 5, 115 30" fill="none" stroke="#1c1c1a" stroke-width="2"/></svg>') }
       ];

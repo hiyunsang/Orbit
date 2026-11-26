@@ -222,7 +222,8 @@
       <div class="sec">서랍 <span class="hint-inline">눌러서 복사 · 끌어서 놓기</span><button class="act" id="btn-drawer-add" type="button" title="글이나 파일(사인 그림 등)을 서랍에 넣습니다">넣기</button></div>
       <div id="drawer-add" class="drawer-add" hidden>
         <input type="text" id="drawer-label" placeholder="이름 (예: 학교 사업자번호)" maxlength="100">
-        <textarea id="drawer-value" rows="2" placeholder="내용 — 글을 적거나, 파일… 을 고르거나, 그림을 여기 붙여넣기(Ctrl+V)"></textarea>
+        <textarea id="drawer-value" rows="3" placeholder="내용 — 글을 적거나, 파일… 을 고르거나, 그림을 여기 붙여넣기(Ctrl+V)"></textarea>
+        <span class="hint" id="drawer-lines-hint">줄을 바꿔 적으면 줄마다 따로 복사돼요 — 계정은 「ID: …」 다음 줄에 「비번: …」</span>
         <div class="btn-row">
           <button class="primary" id="btn-drawer-save" type="button">저장</button>
           <button class="ghostbtn" id="btn-drawer-file" type="button" title="그림·PDF 파일을 고릅니다">파일…</button>
